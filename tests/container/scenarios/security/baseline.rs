@@ -1,16 +1,7 @@
-//! Security and strict mode tests.
-
+use super::helpers::ensure_docker;
 use crate::container::fixtures::*;
 use std::time::Duration;
 use testcontainers::core::ExecCommand;
-
-static DOCKERGUARD: tokio::sync::OnceCell<bool> = tokio::sync::OnceCell::const_new();
-
-async fn ensure_docker() -> bool {
-    *DOCKERGUARD
-        .get_or_init(|| async { check_docker_available().await })
-        .await
-}
 
 #[tokio::test]
 #[serial_test::serial]

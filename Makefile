@@ -1,4 +1,4 @@
-.PHONY: all build release test check fmt clippy clean install \
+.PHONY: all build release test test-all check fmt clippy clean install \
 	musl musl-x86_64 musl-aarch64 gnu gnu-x86_64 gnu-aarch64 \
 	cross-x86_64 cross-aarch64 release-all docker ci packages deb rpm apk \
 	check-aarch64-toolchain install-man
@@ -16,6 +16,10 @@ release:
 	cargo build --release
 
 test:
+	$(MAKE) test-all
+
+test-all:
+	cargo test --all-targets
 	cargo test
 
 check:
