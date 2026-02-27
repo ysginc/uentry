@@ -16,7 +16,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 [dev-dependencies]
 serial_test = "3"
-testcontainers = "0.23"
+testcontainers = "0.27"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process", "sync"] }
 wait-timeout = "0.2"
 tempfile = "3"
