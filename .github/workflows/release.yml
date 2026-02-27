@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
           path: artifacts
@@ -152,7 +152,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: false
@@ -186,7 +186,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: false
@@ -241,7 +241,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download x86_64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: uentry-x86_64-musl
           path: artifacts
