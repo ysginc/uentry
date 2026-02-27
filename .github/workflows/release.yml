@@ -33,7 +33,7 @@ jobs:
             arch: aarch64
             libc: gnu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -63,7 +63,7 @@ jobs:
           sha256sum uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz > uentry-${{ matrix.arch }}-${{ matrix.libc }}.sha256
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
           path: |
@@ -99,13 +99,13 @@ jobs:
             pkg_format: apk
             libc: musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
           path: artifacts
@@ -149,7 +149,7 @@ jobs:
           sha256sum * > uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}.sha256
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}-${{ matrix.pkg_format }}
           path: dist/*
@@ -162,13 +162,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: false
@@ -177,7 +177,7 @@ jobs:
         run: find artifacts -type f | head -50
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/**/uentry-*.tar.gz
@@ -197,13 +197,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: false
@@ -227,7 +227,7 @@ jobs:
           git push origin refs/tags/latest --force
 
       - name: Create Latest Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: latest
@@ -255,13 +255,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download x86_64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: uentry-x86_64-musl
           path: artifacts
@@ -296,7 +296,7 @@ jobs:
           fi
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
