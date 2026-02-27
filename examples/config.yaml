@@ -1,0 +1,64 @@
+# Example uentry configuration file
+# Place at /etc/uentry/config.yaml in your container
+
+runtime:
+  # Drop privileges to this user
+  user: "appuser"
+  group: "appgroup"
+  
+  # Working directory
+  cwd: /app
+  
+  # Environment variables to set
+  env:
+    PATH: "/app/bin:/usr/local/bin:/usr/bin:/bin"
+    LOG_LEVEL: "info"
+  
+  # Forward signals to child process
+  signal_forward: true
+
+security:
+  # Enable strict mode (fail-closed)
+  strict: true
+  
+  # Prevent privilege escalation
+  no_new_privs: true
+  
+  # Allowed writable paths
+  writable_paths:
+    - /tmp
+    - /var/log/app
+
+secrets:
+  # Load secrets from files into environment
+  file_to_env:
+    - file: /run/secrets/db_password
+      env_var: DB_PASSWORD
+      optional: false
+    
+    - file: /run/secrets/api_key
+      env_var: API_KEY
+      optional: true
+
+lifecycle:
+  # Pre-start hook
+  pre_start:
+    command: "/app/scripts/init.sh"
+    timeout_secs: 30
+  
+  # Graceful shutdown timeout
+  shutdown_timeout_secs: 30
+  
+  # Startup grace period for readiness probes
+  startup_grace_secs: 10
+
+app:
+  name: "myapp"
+  
+  # Readiness probe
+  readiness:
+    initial_delay_secs: 5
+    interval_secs: 10
+    http_get:
+      path: /health
+      port: 8080

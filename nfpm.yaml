@@ -1,0 +1,86 @@
+name: uentry
+arch: "${ARCH}"
+platform: linux
+version: "${VERSION}"
+section: utils
+priority: optional
+maintainer: uentry maintainers
+description: |-
+  Universal container entrypoint with PID 1 supervision.
+   Containers running as PID 1 need to handle signals and reap zombies.
+   uentry handles these init duties so your application doesn't have to.
+vendor: ysginc
+homepage: https://github.com/ysginc/uentry
+license: MIT
+
+contents:
+  - src: ./uentry
+    dst: /usr/bin/uentry
+    file_info:
+      mode: 0755
+      # mtime: "{{ now | unix_timestamp }}"
+
+  - src: ./README.md
+    dst: /usr/share/doc/uentry/README.md
+    file_info:
+      mode: 0644
+
+  - src: ./LICENSE
+    dst: /usr/share/doc/uentry/LICENSE
+    file_info:
+      mode: 0644
+
+  - src: ./man/uentry.1
+    dst: /usr/share/man/man1/uentry.1
+    file_info:
+      mode: 0644
+    packager: deb
+  - src: ./man/uentry.1
+    dst: /usr/share/man/man1/uentry.1
+    file_info:
+      mode: 0644
+    packager: rpm
+  - src: ./man/uentry.1
+    dst: /usr/share/man/man1/uentry.1
+    file_info:
+      mode: 0644
+    packager: apk
+
+  - src: ./man/uentry.5
+    dst: /usr/share/man/man5/uentry.5
+    file_info:
+      mode: 0644
+    packager: deb
+  - src: ./man/uentry.5
+    dst: /usr/share/man/man5/uentry.5
+    file_info:
+      mode: 0644
+    packager: rpm
+  - src: ./man/uentry.5
+    dst: /usr/share/man/man5/uentry.5
+    file_info:
+      mode: 0644
+    packager: apk
+
+  - dst: /etc/uentry
+    type: dir
+    file_info:
+      mode: 0755
+
+  - dst: /etc/uentry/profiles
+    type: dir
+    file_info:
+      mode: 0755
+
+deb:
+  signature:
+    key_file: ""
+  compression: xz
+
+rpm:
+  group: System Environment/Base
+  compression: xz
+
+apk:
+  signature:
+    key_file: ""

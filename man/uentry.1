@@ -1,0 +1,203 @@
+.TH UENTRY 1 "2026-02-26" "uentry 0.1.0" "User Commands"
+.SH NAME
+uentry \- universal container entrypoint with PID 1 supervision
+.SH SYNOPSIS
+.B uentry
+[\fIOPTIONS\fR] [\fB--\fR] \fICOMMAND\fR [\fIARGS...\fR]
+.SH DESCRIPTION
+uentry is a universal container entrypoint that handles PID 1 responsibilities:
+signal forwarding, zombie process reaping, and graceful shutdown.
+
+When containers run as PID 1, they inherit kernel responsibilities that most
+applications don't handle correctly. uentry wraps your application and manages
+these duties, plus provides optional security enforcement, secrets management,
+and lifecycle hooks.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config =\fIFILE\fR
+Path to configuration file. Default: \fI/etc/uentry/config.yaml\fR
+.TP
+.BR \-p ", " \-\-profile =\fINAME\fR
+Built-in profile to use. Available profiles: \fIbaseline\fR, \fIk8s\fR, \fIweb\fR, \fIworker\fR
+.TP
+.BR \-\-strict
+Enable strict fail-closed security mode. Refuses to start if:
+.RS
+.IP \[bu] 2
+Running as root without privilege drop configuration
+.IP \[bu]
+Root filesystem is writable (unless \fBwritable_paths\fR configured)
+.IP \[bu]
+Dangerous mounts detected (docker.sock, etc.)
+.IP \[bu]
+Dangerous environment variables present (LD_PRELOAD, etc.)
+.RE
+.TP
+.BR \-\-diagnose
+Run system diagnostics and exit. Useful for debugging container configurations.
+.TP
+.BR \-v ", " \-\-verbose
+Increase verbosity. Can be specified multiple times.
+.TP
+.BR \-q ", " \-\-quiet
+Suppress output.
+.TP
+.BR \-\-log\-format =\fIFORMAT\fR
+Log output format: \fItext\fR (default) or \fIjson\fR
+.TP
+.BR \-h ", " \-\-help
+Print help and exit.
+.TP
+.BR \-V ", " \-\-version
+Print version and exit.
+.TP
+.B \-\-
+Separator between uentry options and the command to execute.
+.SH PROFILES
+Built-in profiles provide sensible defaults for common use cases:
+.TP
+.B baseline
+Safe defaults for any container. Enables signal forwarding.
+.TP
+.B k8s
+Kubernetes workloads. Allows KUBERNETES_* environment variables,
+loads service account tokens, extended shutdown timeout.
+.TP
+.B web
+HTTP servers and APIs. Configures HTTP readiness probe on /health:8080,
+startup grace period, extended shutdown timeout.
+.TP
+.B worker
+Background job processors. Extended startup and shutdown timeouts for
+graceful work completion.
+.SH CONFIGURATION
+Configuration is loaded with the following precedence (highest to lowest):
+.IP 1. 4
+CLI flags
+.IP 2. 4
+Environment variables (\fBUENTRY_*\fR)
+.IP 3. 4
+Config file (\fI/etc/uentry/config.yaml\fR)
+.IP 4. 4
+Profile defaults
+.IP 5. 4
+Built-in defaults
+.SH CONFIGURATION FILE
+The configuration file is YAML format. Example:
+.sp
+.EX
+.nf
+runtime:
+  user: appuser
+  group: appgroup
+  env:
+    LOG_LEVEL: info
+  signal_forward: true
+
+security:
+  no_new_privs: true
+  writable_paths:
+    - /tmp
+
+secrets:
+  file_to_env:
+    - file: /run/secrets/db_password
+      env_var: DB_PASSWORD
+
+lifecycle:
+  pre_start:
+    command: /app/migrate.sh
+    timeout_secs: 30
+
+app:
+  readiness:
+    http_get:
+      path: /health
+      port: 8080
+.EE
+.fi
+.SH ENVIRONMENT VARIABLES
+.TP
+.B UENTRY_STRICT
+Enable strict mode (\fItrue\fR/\fIfalse\fR)
+.TP
+.B UENTRY_USER
+User to run as (username or UID)
+.TP
+.B UENTRY_GROUP
+Group to run as (groupname or GID)
+.TP
+.B UENTRY_CWD
+Working directory
+.TP
+.B UENTRY_PROFILE
+Configuration profile name
+.TP
+.B UENTRY_CONFIG
+Path to configuration file
+.TP
+.B UENTRY_LOG_FORMAT
+Log format (\fItext\fR or \fIjson\fR)
+.TP
+.B UENTRY_LOG_LEVEL
+Log level (\fItrace\fR, \fIdebug\fR, \fIinfo\fR, \fIwarn\fR, \fIerror\fR)
+.SH EXAMPLES
+.TP
+Basic usage:
+.EX
+uentry -- nginx -g "daemon off;"
+.EE
+.TP
+With profile:
+.EX
+uentry --profile web -- /app/server
+.EE
+.TP
+Strict mode with privilege dropping:
+.EX
+uentry --strict --user 1000 --group 1000 -- /app/app
+.EE
+.TP
+With configuration file:
+.EX
+uentry --config /etc/uentry/config.yaml -- /app/app
+.EE
+.TP
+Run diagnostics:
+.EX
+uentry --diagnose
+.EE
+.SH FILES
+.TP
+.I /etc/uentry/config.yaml
+Default configuration file.
+.TP
+.I /etc/uentry/profiles/*.yaml
+Custom profile definitions.
+.TP
+.I /usr/lib/uentry/hooks/{phase}.d/*
+External lifecycle hooks.
+.SH EXIT STATUS
+.TP
+.B 0
+Success (child exited with code 0)
+.TP
+.B 1-125
+Child process exit code
+.TP
+.B 126
+Command not executable
+.TP
+.B 127
+Command not found
+.TP
+.B 128+n
+Child killed by signal n
+.SH SEE ALSO
+.BR docker (1),
+.BR podman (1),
+.BR tini (1)
+.SH BUGS
+Report bugs at \fIhttps://github.com/ysginc/uentry/issues\fR
+.SH AUTHOR
+YSG Inc.

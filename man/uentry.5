@@ -1,0 +1,266 @@
+.TH UENTRY 5 "2026-02-26" "uentry 0.1.0" "File Formats"
+.SH NAME
+uentry.yaml \- uentry configuration file
+.SH DESCRIPTION
+The uentry configuration file is a YAML file that defines runtime behavior,
+security settings, secrets management, and lifecycle hooks.
+
+Default location: \fI/etc/uentry/config.yaml\fR
+.SH SCHEMA
+.SS Runtime Section
+.EX
+runtime:
+  strict: false
+  user: "appuser"
+  group: "appgroup"
+  supplementary_groups: ["audio", "video"]
+  ensure_dirs:
+    - path: /var/log/app
+      mode: "0755"
+      owner: "appuser"
+      group: "appgroup"
+  env:
+    LOG_LEVEL: "info"
+  env_allow: ["PATH", "HOME", "APP_*"]
+  env_deny: ["AWS_*", "SECRET_*"]
+  signal_forward: true
+  umask: "022"
+  cwd: /app
+.EE
+.TP
+.B strict
+Enable strict fail-closed mode. Default: \fIfalse\fR
+.TP
+.B user
+User to run as (username or UID). Requires root or CAP_SETUID.
+.TP
+.B group
+Group to run as (groupname or GID). Requires root or CAP_SETGID.
+.TP
+.B supplementary_groups
+Additional groups to set when dropping privileges.
+.TP
+.B ensure_dirs
+Directories to create before starting the application.
+.TP
+.B env
+Environment variables to set for the child process. Supports expansion:
+.RS
+.IP \[bu] 2
+\fB$VAR\fR \- Simple expansion
+.IP \[bu]
+\fB${VAR}\fR \- Brace expansion
+.IP \[bu]
+\fB${VAR:-default}\fR \- Default if unset
+.IP \[bu]
+\fB${VAR:+alternate}\fR \- Alternate if set
+.RE
+.TP
+.B env_allow
+Glob patterns for environment variables to allow from parent.
+.TP
+.B env_deny
+Glob patterns for environment variables to deny from parent.
+.TP
+.B signal_forward
+Forward signals to child process. Default: \fItrue\fR
+.TP
+.B umask
+Set umask before exec (octal string).
+.TP
+.B cwd
+Working directory for child process.
+
+.SS Security Section
+.EX
+security:
+  no_new_privs: true
+  allow_root: false
+  writable_paths:
+    - /tmp
+    - /var/log/app
+.EE
+.TP
+.B no_new_privs
+Set PR_SET_NO_NEW_PRIVS to prevent privilege escalation.
+.TP
+.B allow_root
+Allow running as root in strict mode. Default: \fIfalse\fR
+.TP
+.B writable_paths
+Paths allowed to be writable in strict mode.
+
+.SS Secrets Section
+.EX
+secrets:
+  file_to_env:
+    - file: /run/secrets/db_password
+      env_var: DB_PASSWORD
+      optional: false
+  env_to_file:
+    - env_var: CONFIG_JSON
+      file: /app/config.json
+      mode: "0600"
+.EE
+.TP
+.B file_to_env
+Read secrets from files and inject into environment.
+.RS
+.IP \[bu] 2
+\fBfile\fR \- Path to secret file
+.IP \[bu]
+\fBenv_var\fR \- Environment variable name
+.IP \[bu]
+\fBoptional\fR \- Don't fail if file missing. Default: \fIfalse\fR
+.RE
+.TP
+.B env_to_file
+Write environment variables to files.
+.RS
+.IP \[bu] 2
+\fBenv_var\fR \- Environment variable name
+.IP \[bu]
+\fBfile\fR \- Destination file path
+.IP \[bu]
+\fBmode\fR \- File permissions (octal). Default: \fI0600\fR
+.RE
+
+.SS Lifecycle Section
+.EX
+lifecycle:
+  pre_start:
+    command: /app/migrate.sh
+    args: ["--force"]
+    timeout_secs: 30
+    env:
+      MIGRATE_MODE: "true"
+  post_stop:
+    command: /app/cleanup.sh
+    timeout_secs: 10
+  startup_grace_secs: 10
+  shutdown_timeout_secs: 30
+.EE
+.TP
+.B pre_start
+Command to execute before main process. Fails container if command fails.
+.TP
+.B post_stop
+Command to execute after main process exits.
+.TP
+.B startup_grace_secs
+Grace period before readiness probes begin. Default: \fI0\fR
+.TP
+.B shutdown_timeout_secs
+Timeout for graceful shutdown (SIGTERM to SIGKILL). Default: \fI30\fR
+
+.SS App Section
+.EX
+app:
+  name: "myapp"
+  healthcheck:
+    command: /app/health.sh
+    interval_secs: 30
+  readiness:
+    initial_delay_secs: 5
+    interval_secs: 10
+    timeout_secs: 5
+    failure_threshold: 3
+    http_get:
+      path: /health
+      port: 8080
+      host: "127.0.0.1"
+.EE
+.TP
+.B name
+Application name for logging.
+.TP
+.B healthcheck
+Health check configuration (not currently used).
+.TP
+.B readiness
+Readiness probe configuration.
+.RS
+.IP \[bu] 2
+\fBhttp_get\fR \- HTTP probe
+.IP \[bu]
+\fBtcp_socket\fR \- TCP probe
+.IP \[bu]
+\fBexec\fR \- Exec probe
+.RE
+
+.SS Readiness Probes
+.P
+HTTP probe:
+.EX
+readiness:
+  http_get:
+    path: /health
+    port: 8080
+.EE
+.P
+TCP probe:
+.EX
+readiness:
+  tcp_socket:
+    port: 6379
+.EE
+.P
+Exec probe:
+.EX
+readiness:
+  exec:
+    command: ["/app/health-check.sh"]
+.EE
+.SH EXAMPLES
+.SS Minimal Configuration
+.EX
+runtime:
+  signal_forward: true
+
+lifecycle:
+  shutdown_timeout_secs: 10
+.EE
+.SS Production Web Server
+.EX
+runtime:
+  user: "appuser"
+  group: "appgroup"
+  env:
+    NODE_ENV: "production"
+
+security:
+  no_new_privs: true
+  writable_paths:
+    - /tmp
+    - /var/log/app
+
+lifecycle:
+  pre_start:
+    command: /app/migrate.sh
+    timeout_secs: 60
+  shutdown_timeout_secs: 30
+
+app:
+  readiness:
+    initial_delay_secs: 5
+    http_get:
+      path: /health
+      port: 8080
+.EE
+.SS Kubernetes Worker
+.EX
+runtime:
+  user: "1000"
+  group: "1000"
+  env_allow:
+    - "KUBERNETES_*"
+    - "POD_*"
+
+lifecycle:
+  startup_grace_secs: 30
+  shutdown_timeout_secs: 60
+.EE
+.SH SEE ALSO
+.BR uentry (1)
+.SH AUTHOR
+YSG Inc.

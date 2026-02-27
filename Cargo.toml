@@ -1,0 +1,28 @@
+[package]
+name = "uentry"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+libc = "0.2"
+nix = { version = "0.29", features = ["signal", "process", "user"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+serial_test = "3"
+testcontainers = "0.23"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process", "sync"] }
+wait-timeout = "0.2"
+tempfile = "3"
+
+[profile.release]
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = true

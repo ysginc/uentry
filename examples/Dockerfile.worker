@@ -1,0 +1,19 @@
+# Example: Using uentry for a Kubernetes worker/job
+# Build uentry first: cargo build --release --target x86_64-unknown-linux-musl
+
+FROM alpine:3.19 AS builder
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY --from=uentry-builder /uentry /uentry
+COPY your-worker /app/your-worker
+
+FROM scratch
+COPY --from=builder /uentry /uentry
+COPY --from=builder /app/your-worker /app/your-worker
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+
+# uentry config with strict mode
+COPY config.yaml /etc/uentry/config.yaml
+
+ENTRYPOINT ["/uentry", "--strict", "--profile", "worker"]
+CMD ["/app/your-worker"]

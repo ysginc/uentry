@@ -1,0 +1,222 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            arch: x86_64
+            libc: musl
+          - target: aarch64-unknown-linux-musl
+            arch: aarch64
+            libc: musl
+          - target: x86_64-unknown-linux-gnu
+            arch: x86_64
+            libc: gnu
+          - target: aarch64-unknown-linux-gnu
+            arch: aarch64
+            libc: gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+          mkdir -p ~/.cargo
+          echo '[target.aarch64-unknown-linux-musl]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz uentry
+          sha256sum uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz > uentry-${{ matrix.arch }}-${{ matrix.libc }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
+          path: |
+            target/${{ matrix.target }}/release/uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz
+            target/${{ matrix.target }}/release/uentry-${{ matrix.arch }}-${{ matrix.libc }}.sha256
+
+  packages:
+    name: Build Packages (${{ matrix.pkg_format }}) - ${{ matrix.arch }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            pkg_format: deb
+            libc: gnu
+          - arch: x86_64
+            pkg_format: rpm
+            libc: gnu
+          - arch: x86_64
+            pkg_format: apk
+            libc: musl
+          - arch: aarch64
+            pkg_format: deb
+            libc: gnu
+          - arch: aarch64
+            pkg_format: rpm
+            libc: gnu
+          - arch: aarch64
+            pkg_format: apk
+            libc: musl
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
+          path: artifacts
+
+      - name: Extract binary
+        run: |
+          tar -xzf artifacts/uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz
+          chmod +x uentry
+
+      - name: Install nfpm
+        run: |
+          curl -sL https://github.com/goreleaser/nfpm/releases/download/v2.44.2/nfpm_2.44.2_Linux_x86_64.tar.gz | tar xz
+          sudo mv nfpm /usr/local/bin/
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build ${{ matrix.pkg_format }} package
+        env:
+          ARCH: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
+        run: |
+          mkdir -p dist
+          VERSION=${{ steps.version.outputs.VERSION }} \
+          nfpm package --packager ${{ matrix.pkg_format }} --target ./dist/uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}
+
+      - name: Generate checksum
+        run: |
+          cd dist
+          sha256sum * > uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uentry-${{ matrix.arch }}-${{ matrix.libc }}-${{ matrix.pkg_format }}
+          path: dist/*
+
+  release:
+    name: Create Release
+    needs: [build, packages]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Display structure
+        run: find artifacts -type f | head -50
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/uentry-*.tar.gz
+            artifacts/**/uentry-*.sha256
+            artifacts/**/uentry-*.deb
+            artifacts/**/uentry-*.rpm
+            artifacts/**/uentry-*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  container:
+    name: Build Container Image
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x86_64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: uentry-x86_64-musl
+          path: artifacts
+
+      - name: Extract binary
+        run: |
+          tar -xzf artifacts/uentry-x86_64-musl.tar.gz
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+          platforms: linux/amd64
