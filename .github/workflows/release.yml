@@ -60,7 +60,7 @@ jobs:
           sha256sum uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz > uentry-${{ matrix.arch }}-${{ matrix.libc }}.sha256
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
           path: |
@@ -136,7 +136,7 @@ jobs:
           sha256sum * > uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}.sha256
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uentry-${{ matrix.arch }}-${{ matrix.libc }}-${{ matrix.pkg_format }}
           path: dist/*
