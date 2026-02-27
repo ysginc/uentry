@@ -1,0 +1,15 @@
+runtime:
+  strict: true
+
+security:
+  allow_root: true
+  no_new_privs: true
+  writable_paths:
+    - /tmp
+
+audit:
+  enabled: true
+  deep_trace: true
+  output: /tmp/uentry-audit.json
+  profile_output: /tmp/uentry-audit-profile.yaml
+  backend: auto

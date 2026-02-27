@@ -2,7 +2,6 @@
 
 use crate::container::fixtures::*;
 use std::time::Duration;
-use testcontainers::core::ExecCommand;
 
 static DOCKERGUARD: tokio::sync::OnceCell<bool> = tokio::sync::OnceCell::const_new();
 
@@ -55,6 +54,7 @@ CMD ["/bin/sh", "-c", "cat /tmp/hook-ran.txt 2>/dev/null || echo 'no hook'; slee
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()
@@ -110,6 +110,7 @@ CMD ["/bin/sh", "-c", "echo $MY_SECRET && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()
@@ -166,6 +167,7 @@ CMD ["/bin/sh", "-c", "cp /app/config/secret.txt /tmp/result.txt 2>/dev/null || 
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     use testcontainers::core::ExecCommand;
     let mut exec = container
@@ -225,6 +227,7 @@ CMD ["/bin/sh", "-c", "ls -la /var/log/app /var/run/app 2>&1; sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()

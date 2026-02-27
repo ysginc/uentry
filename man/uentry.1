@@ -36,14 +36,17 @@ Dangerous environment variables present (LD_PRELOAD, etc.)
 .BR \-\-diagnose
 Run system diagnostics and exit. Useful for debugging container configurations.
 .TP
-.BR \-v ", " \-\-verbose
-Increase verbosity. Can be specified multiple times.
+.BR \-\-audit
+Enable audit reporting.
 .TP
-.BR \-q ", " \-\-quiet
-Suppress output.
+.BR \-\-audit\-deep
+Enable deep audit tracing. Uses capability-aware fallback behavior.
 .TP
-.BR \-\-log\-format =\fIFORMAT\fR
-Log output format: \fItext\fR (default) or \fIjson\fR
+.BR \-\-audit\-output =\fIPATH\fR
+Write audit JSON report to the specified path.
+.TP
+.BR \-\-audit\-profile\-output =\fIPATH\fR
+Write discovered profile snippet YAML to the specified path.
 .TP
 .BR \-h ", " \-\-help
 Print help and exit.
@@ -141,6 +144,21 @@ Log format (\fItext\fR or \fIjson\fR)
 .TP
 .B UENTRY_LOG_LEVEL
 Log level (\fItrace\fR, \fIdebug\fR, \fIinfo\fR, \fIwarn\fR, \fIerror\fR)
+.TP
+.B UENTRY_AUDIT
+Enable audit reporting (\fItrue\fR/\fIfalse\fR)
+.TP
+.B UENTRY_AUDIT_DEEP
+Enable deep audit tracing (\fItrue\fR/\fIfalse\fR)
+.TP
+.B UENTRY_AUDIT_OUTPUT
+Audit report output path
+.TP
+.B UENTRY_AUDIT_PROFILE_OUTPUT
+Discovered profile snippet output path
+.TP
+.B UENTRY_AUDIT_BACKEND
+Audit backend (\fIauto\fR, \fIstrace\fR, \fInone\fR)
 .SH EXAMPLES
 .TP
 Basic usage:
@@ -155,7 +173,12 @@ uentry --profile web -- /app/server
 .TP
 Strict mode with privilege dropping:
 .EX
-uentry --strict --user 1000 --group 1000 -- /app/app
+UENTRY_USER=1000 UENTRY_GROUP=1000 uentry --strict -- /app/app
+.EE
+.TP
+Audit profile discovery:
+.EX
+uentry --audit --audit-output /tmp/audit.json --audit-profile-output /tmp/profile.yaml -- /app/app
 .EE
 .TP
 With configuration file:

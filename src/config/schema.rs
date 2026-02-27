@@ -23,6 +23,45 @@ pub struct Config {
     pub secrets: SecretsConfig,
     #[serde(default)]
     pub lifecycle: LifecycleConfig,
+    #[serde(default)]
+    pub audit: AuditConfig,
+}
+
+/// Audit backend selection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditBackend {
+    #[default]
+    Auto,
+    Strace,
+    None,
+}
+
+/// Audit configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub deep_trace: bool,
+    #[serde(default)]
+    pub output: Option<PathBuf>,
+    #[serde(default)]
+    pub profile_output: Option<PathBuf>,
+    #[serde(default)]
+    pub backend: AuditBackend,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            deep_trace: false,
+            output: None,
+            profile_output: None,
+            backend: AuditBackend::Auto,
+        }
+    }
 }
 
 /// Runtime configuration for process execution.
@@ -333,6 +372,11 @@ mod tests {
         assert!(config.lifecycle.pre_start.is_none());
         assert_eq!(config.lifecycle.shutdown_timeout_secs, 30);
         assert!(config.app.readiness.is_none());
+        assert!(!config.audit.enabled);
+        assert!(!config.audit.deep_trace);
+        assert!(config.audit.output.is_none());
+        assert!(config.audit.profile_output.is_none());
+        assert_eq!(config.audit.backend, AuditBackend::Auto);
     }
 
     #[test]

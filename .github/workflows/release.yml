@@ -1,11 +1,10 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +14,7 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     permissions:
       contents: read
     strategy:
@@ -34,6 +34,9 @@ jobs:
             libc: gnu
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -71,6 +74,7 @@ jobs:
     name: Build Packages (${{ matrix.pkg_format }}) - ${{ matrix.arch }}
     needs: build
     runs-on: ubuntu-latest
+    if: needs.build.result == 'success'
     permissions:
       contents: read
     strategy:
@@ -96,6 +100,9 @@ jobs:
             libc: musl
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download binary
         uses: actions/download-artifact@v4
@@ -116,10 +123,16 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          REF_NAME="${{ github.event.workflow_run.head_branch }}"
+          if [[ "$REF_NAME" == "main" ]]; then
+            echo "VERSION=0.0.0-$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
           else
-            echo "VERSION=0.0.0-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+            TAG_NAME="$(git tag --points-at '${{ github.event.workflow_run.head_sha }}' | grep '^v' | head -n1)"
+            if [[ -z "$TAG_NAME" ]]; then
+              echo "Failed to determine version tag for SHA ${{ github.event.workflow_run.head_sha }}"
+              exit 1
+            fi
+            echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build ${{ matrix.pkg_format }} package
@@ -145,11 +158,14 @@ jobs:
     name: Create Release
     needs: [build, packages]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch != 'main'
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -177,13 +193,14 @@ jobs:
     name: Create Latest Release (main)
     needs: [build, packages]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -195,7 +212,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f latest "${GITHUB_SHA}"
+          git tag -f latest "${{ github.event.workflow_run.head_sha }}"
           git push origin refs/tags/latest --force
 
       - name: Remove existing latest release
@@ -206,7 +223,7 @@ jobs:
 
       - name: Recreate latest tag
         run: |
-          git tag -f latest "${GITHUB_SHA}"
+          git tag -f latest "${{ github.event.workflow_run.head_sha }}"
           git push origin refs/tags/latest --force
 
       - name: Create Latest Release
@@ -214,7 +231,7 @@ jobs:
         with:
           tag_name: latest
           name: latest
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
           files: |
             artifacts/**/uentry-*.tar.gz
             artifacts/**/uentry-*.sha256
@@ -233,12 +250,15 @@ jobs:
     name: Build Container Image
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch != 'main'
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Download x86_64 artifact
         uses: actions/download-artifact@v4
@@ -263,10 +283,16 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          REF_NAME="${{ github.event.workflow_run.head_branch }}"
+          if [[ "$REF_NAME" == "main" ]]; then
+            echo "VERSION=0.0.0-$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
           else
-            echo "VERSION=0.0.0-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+            TAG_NAME="$(git tag --points-at '${{ github.event.workflow_run.head_sha }}' | grep '^v' | head -n1)"
+            if [[ -z "$TAG_NAME" ]]; then
+              echo "Failed to determine version tag for SHA ${{ github.event.workflow_run.head_sha }}"
+              exit 1
+            fi
+            echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push

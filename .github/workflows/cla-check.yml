@@ -1,0 +1,40 @@
+name: CLA Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cla:
+    name: Verify CLA acknowledgment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR body contains CLA acknowledgment
+        env:
+          CLA_PHRASE: I have read and agree to the CLA in CLA.md.
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          phrase = os.environ["CLA_PHRASE"].strip().lower()
+
+          with open(event_path, "r", encoding="utf-8") as handle:
+              event = json.load(handle)
+
+          body = (event.get("pull_request", {}).get("body") or "").lower()
+
+          if phrase not in body:
+              print("Missing required CLA acknowledgment sentence in PR body.")
+              print("Required:")
+              print(f"  {os.environ['CLA_PHRASE']}")
+              sys.exit(1)
+
+          print("CLA acknowledgment found.")
+          PY

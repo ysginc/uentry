@@ -52,6 +52,7 @@ async fn test_profile_loads(profile_name: &str) {
             "Failed to start container for profile {}",
             profile_name
         ));
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
@@ -133,6 +134,7 @@ CMD ["/bin/sh", "-c", "echo CUSTOM_VAR=$CUSTOM_VAR > /tmp/env.txt; sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![

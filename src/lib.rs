@@ -14,6 +14,7 @@
 //! - **Lifecycle**: Hooks, pre/post commands, readiness probes
 //! - **Profiles**: Built-in and custom configuration profiles
 
+pub mod audit;
 pub mod cli;
 pub mod config;
 pub mod error;

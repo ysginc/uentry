@@ -90,6 +90,32 @@ Allow running as root in strict mode. Default: \fIfalse\fR
 .B writable_paths
 Paths allowed to be writable in strict mode.
 
+.SS Audit Section
+.EX
+audit:
+  enabled: false
+  deep_trace: false
+  output: /tmp/uentry-audit.json
+  profile_output: /tmp/uentry-profile.yaml
+  backend: auto
+.EE
+.TP
+.B enabled
+Enable runtime audit report generation.
+.TP
+.B deep_trace
+Enable deep syscall and file-access tracing. Behavior is backend-dependent.
+.TP
+.B output
+Path to write audit JSON report. If unset, report is emitted to stderr.
+.TP
+.B profile_output
+Path to write discovered profile snippet YAML.
+.TP
+.B backend
+Tracing backend selection: \fIauto\fR, \fIstrace\fR, or \fInone\fR.
+With \fIauto\fR, uentry attempts deep trace when supported and falls back safely.
+
 .SS Secrets Section
 .EX
 secrets:

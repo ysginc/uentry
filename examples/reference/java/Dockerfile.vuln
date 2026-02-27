@@ -1,0 +1,6 @@
+FROM eclipse-temurin:21-jre
+COPY uentry /uentry
+COPY uentry.vuln.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry
+ENTRYPOINT ["/uentry"]
+CMD ["java", "-version"]

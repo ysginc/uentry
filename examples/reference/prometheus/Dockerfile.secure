@@ -1,0 +1,6 @@
+FROM prom/prometheus:v2.55.1
+COPY uentry /uentry
+COPY uentry.secure.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry /tmp
+ENTRYPOINT ["/uentry", "--strict"]
+CMD ["prometheus", "--version"]

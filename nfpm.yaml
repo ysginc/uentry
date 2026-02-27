@@ -11,7 +11,7 @@ description: |-
    uentry handles these init duties so your application doesn't have to.
 vendor: ysginc
 homepage: https://github.com/ysginc/uentry
-license: MIT
+license: AGPL-3.0-or-later
 
 contents:
   - src: ./uentry

@@ -3,6 +3,7 @@
 //! This module defines the command-line interface using clap.
 
 use clap::Parser;
+use std::path::PathBuf;
 
 /// Command-line arguments for uentry.
 #[derive(Debug, Parser)]
@@ -21,6 +22,28 @@ pub struct Cli {
 
     #[arg(long, help = "Run diagnostics and exit")]
     pub diagnose: bool,
+
+    #[arg(long, env = "UENTRY_AUDIT", help = "Enable audit reporting")]
+    pub audit: bool,
+
+    #[arg(long, env = "UENTRY_AUDIT_DEEP", help = "Enable deep audit tracing")]
+    pub audit_deep: bool,
+
+    #[arg(
+        long,
+        env = "UENTRY_AUDIT_OUTPUT",
+        value_name = "PATH",
+        help = "Audit report output path"
+    )]
+    pub audit_output: Option<PathBuf>,
+
+    #[arg(
+        long,
+        env = "UENTRY_AUDIT_PROFILE_OUTPUT",
+        value_name = "PATH",
+        help = "Audit profile snippet output path"
+    )]
+    pub audit_profile_output: Option<PathBuf>,
 
     #[arg(num_args = 1.., trailing_var_arg = true)]
     pub command: Vec<String>,
@@ -57,6 +80,10 @@ mod tests {
             profile: None,
             config: None,
             diagnose: false,
+            audit: false,
+            audit_deep: false,
+            audit_output: None,
+            audit_profile_output: None,
             command: vec!["echo".to_string(), "hello".to_string()],
         };
         assert!(cli.validate().is_ok());
@@ -69,6 +96,10 @@ mod tests {
             profile: None,
             config: None,
             diagnose: true,
+            audit: false,
+            audit_deep: false,
+            audit_output: None,
+            audit_profile_output: None,
             command: vec![],
         };
         assert!(cli.validate().is_ok());
@@ -81,6 +112,10 @@ mod tests {
             profile: None,
             config: None,
             diagnose: false,
+            audit: false,
+            audit_deep: false,
+            audit_output: None,
+            audit_profile_output: None,
             command: vec![],
         };
         assert!(cli.validate().is_err());
@@ -94,6 +129,10 @@ mod tests {
             profile: Some("prod".to_string()),
             config: Some(std::path::PathBuf::from("/etc/config.yaml")),
             diagnose: false,
+            audit: false,
+            audit_deep: false,
+            audit_output: None,
+            audit_profile_output: None,
             command: vec!["app".to_string()],
         };
         let debug_str = format!("{:?}", cli);
@@ -135,5 +174,31 @@ mod tests {
         assert!(cli.is_ok());
         let cli = cli.unwrap();
         assert!(cli.diagnose);
+    }
+
+    #[test]
+    fn test_cli_parse_audit_flags() {
+        let cli = Cli::try_parse_from([
+            "uentry",
+            "--audit",
+            "--audit-deep",
+            "--audit-output",
+            "/tmp/audit.json",
+            "--audit-profile-output",
+            "/tmp/profile.yaml",
+            "app",
+        ]);
+        assert!(cli.is_ok());
+        let cli = cli.unwrap();
+        assert!(cli.audit);
+        assert!(cli.audit_deep);
+        assert_eq!(
+            cli.audit_output,
+            Some(std::path::PathBuf::from("/tmp/audit.json"))
+        );
+        assert_eq!(
+            cli.audit_profile_output,
+            Some(std::path::PathBuf::from("/tmp/profile.yaml"))
+        );
     }
 }

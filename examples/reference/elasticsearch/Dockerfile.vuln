@@ -1,0 +1,6 @@
+FROM docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+COPY uentry /uentry
+COPY uentry.vuln.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry
+ENTRYPOINT ["/uentry"]
+CMD ["elasticsearch", "--version"]

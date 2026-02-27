@@ -45,6 +45,7 @@ CMD ["/bin/sh", "-c", "echo 'running as non-root' && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec!["whoami".to_string()]))
@@ -97,6 +98,7 @@ CMD ["/bin/sh", "-c", "whoami && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let result = container
         .exec(ExecCommand::new(vec!["whoami".to_string()]))
@@ -159,6 +161,7 @@ CMD ["/bin/sh", "-c", "echo test > /tmp/test.txt && cat /tmp/test.txt && sleep 3
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
@@ -208,6 +211,7 @@ CMD ["/bin/sh", "-c", "grep NoNewPrivs /proc/self/status && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()
@@ -258,6 +262,7 @@ CMD ["/bin/sh", "-c", "printenv | grep -E 'APP_MODE|DEBUG' && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()

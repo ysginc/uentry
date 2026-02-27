@@ -59,6 +59,7 @@ CMD ["/bin/busybox", "sleep", "60"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let result = container
         .exec(ExecCommand::new(vec![
@@ -116,6 +117,7 @@ CMD ["/bin/busybox", "sh", "-c", "echo 'hello from uentry' && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()
@@ -159,6 +161,7 @@ CMD ["/bin/sh", "-c", "echo TEST_VAR=$TEST_VAR && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()

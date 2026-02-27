@@ -63,6 +63,22 @@ security:
   # Paths allowed to be writable in strict mode
   writable_paths: []
 
+audit:
+  # Enable runtime audit reporting
+  enabled: false
+
+  # Enable deep tracing (best-effort)
+  deep_trace: false
+
+  # Write audit JSON report to file (null = stderr)
+  output: null
+
+  # Write derived profile snippet to file
+  profile_output: null
+
+  # Deep trace backend: auto, strace, none
+  backend: auto
+
 secrets:
   # Load secrets from files into environment
   file_to_env: []
@@ -263,6 +279,99 @@ security:
     - /tmp
     - /var/log
     - /var/run
+```
+
+## Audit Configuration
+
+### `audit.enabled`
+
+Enable runtime audit collection and final report generation.
+
+- **Type:** `bool`
+- **Default:** `false`
+
+When disabled, no audit session is created and no report is emitted.
+
+### `audit.deep_trace`
+
+Request deep tracing of file/process syscalls.
+
+- **Type:** `bool`
+- **Default:** `false`
+
+When enabled, uentry attempts deep tracing via `strace` unless disabled by backend policy.
+If tracing is unavailable, uentry falls back to lightweight audit reporting.
+
+### `audit.output`
+
+Path for the audit JSON report.
+
+- **Type:** `string` (path) or `null`
+- **Default:** `null`
+
+When `null`, the audit report is written to stderr.
+
+### `audit.profile_output`
+
+Path for the generated profile snippet (YAML).
+
+- **Type:** `string` (path) or `null`
+- **Default:** `null`
+
+When set, uentry writes derived `runtime.env_allow` and `security.writable_paths` hints.
+
+### `audit.backend`
+
+Select deep trace backend behavior.
+
+- **Type:** `enum` (`auto`, `strace`, `none`)
+- **Default:** `auto`
+
+Backend behavior:
+
+- `auto`: use `strace` when available; otherwise continue without deep trace.
+- `strace`: request `strace` explicitly; still downgrades if unavailable.
+- `none`: disable deep trace even when `deep_trace: true`.
+
+Environment overrides for audit settings:
+
+- `UENTRY_AUDIT` -> `audit.enabled`
+- `UENTRY_AUDIT_DEEP` -> `audit.deep_trace`
+- `UENTRY_AUDIT_OUTPUT` -> `audit.output`
+- `UENTRY_AUDIT_PROFILE_OUTPUT` -> `audit.profile_output`
+- `UENTRY_AUDIT_BACKEND` -> `audit.backend`
+
+Portable audit mode:
+
+```yaml
+audit:
+  enabled: true
+  deep_trace: false
+  output: /var/log/uentry/audit.json
+  profile_output: /var/log/uentry/profile.yaml
+  backend: auto
+```
+
+Deep tracing with fallback (`backend: auto`):
+
+```yaml
+audit:
+  enabled: true
+  deep_trace: true
+  output: /var/log/uentry/audit.json
+  profile_output: /var/log/uentry/profile.yaml
+  backend: auto
+```
+
+Force no deep trace (`backend: none`):
+
+```yaml
+audit:
+  enabled: true
+  deep_trace: true
+  output: /var/log/uentry/audit.json
+  profile_output: /var/log/uentry/profile.yaml
+  backend: none
 ```
 
 ## Secrets Configuration

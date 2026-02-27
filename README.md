@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ysginc/uentry/actions/workflows/ci.yml/badge.svg)](https://github.com/ysginc/uentry/actions/workflows/ci.yml)
 [![Release](https://github.com/ysginc/uentry/actions/workflows/release.yml/badge.svg)](https://github.com/ysginc/uentry/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 > **⚠️ Work in Progress**
 >
@@ -290,25 +290,19 @@ app:
 
 ## Derived Images
 
-Overlay uentry on existing images:
+Use the mainstream secure and intentionally vulnerable reference matrix in
+[`examples/reference`](examples/reference), documented in
+[`examples/reference/README.md`](examples/reference/README.md).
 
-```dockerfile
-# Add uentry to nginx
-FROM nginx:alpine
-COPY uentry /uentry
-RUN chmod +x /uentry
-ENTRYPOINT ["/uentry"]
-CMD ["nginx", "-g", "daemon off;"]
-```
+Each stack includes paired artifacts:
 
-```dockerfile
-# Add uentry to redis
-FROM redis:alpine
-COPY uentry /uentry
-RUN chmod +x /uentry
-ENTRYPOINT ["/uentry"]
-CMD ["redis-server"]
-```
+- `Dockerfile.secure`
+- `Dockerfile.vuln`
+- `uentry.secure.yaml`
+- `uentry.vuln.yaml`
+
+Secure variants enable strict mode plus audit reporting with restrictive defaults.
+Vulnerable variants intentionally disable strict protections for exploit-path testing.
 
 ## Environment Variables
 
@@ -322,6 +316,11 @@ CMD ["redis-server"]
 | `UENTRY_CONFIG` | Config file path |
 | `UENTRY_LOG_FORMAT` | `json` or `text` |
 | `UENTRY_LOG_LEVEL` | `trace`, `debug`, `info`, `warn`, `error` |
+| `UENTRY_AUDIT` | Enable audit reporting (`true`/`false`) |
+| `UENTRY_AUDIT_DEEP` | Enable deep audit tracing (`true`/`false`) |
+| `UENTRY_AUDIT_OUTPUT` | Audit report output path |
+| `UENTRY_AUDIT_PROFILE_OUTPUT` | Audit profile output path |
+| `UENTRY_AUDIT_BACKEND` | Audit backend (`auto`, `strace`, `none`) |
 
 ## Distribution
 
@@ -377,6 +376,12 @@ make packages
 - [Profile Catalog](docs/reference/profiles.md) - Built-in profiles
 - [Security Model](docs/reference/security.md) - Threat model and mitigations
 - [Roadmap](docs/ROADMAP.md) - Project status and future plans
+- [Copyright Notice](COPYRIGHT) - Project ownership and licensing metadata
+
+## Contributing
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Contributor License Agreement (CLA)](CLA.md)
 
 ## Comparison
 
@@ -395,4 +400,4 @@ make packages
 
 ## License
 
-MIT
+AGPL-3.0-or-later

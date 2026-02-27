@@ -2,6 +2,7 @@
 //!
 //! This module handles forking, executing, and waiting for child processes.
 
+use crate::audit::AuditSession;
 use crate::config::Config;
 use crate::error::{Result, UentryError};
 use crate::pid1::SignalHandler;
@@ -25,8 +26,14 @@ pub fn execute(
     command: &[String],
     config: &Config,
     signal_handler: &mut SignalHandler,
+    mut audit: Option<&mut AuditSession>,
 ) -> Result<i32> {
-    ensure_directories(config)?;
+    let audit_for_dirs = audit.as_deref_mut();
+    ensure_directories(config, audit_for_dirs)?;
+
+    if let Some(session) = audit.as_mut() {
+        session.record_env_keys(config.runtime.env.keys().cloned());
+    }
 
     for (key, value) in &config.runtime.env {
         std::env::set_var(key, value);
@@ -36,7 +43,14 @@ pub fn execute(
         debug!("Dropping privileges to user: {}", user);
     }
 
-    let (cmd, args) = parse_command(command)?;
+    let mut command_to_execute = command.to_vec();
+    if let Some(session) = audit.as_mut() {
+        session.record_command(command);
+        session.detect_linked_libraries(command);
+        command_to_execute = session.prepare_command_for_exec(command);
+    }
+
+    let (cmd, args) = parse_command(&command_to_execute)?;
 
     info!("Executing: {} {:?}", cmd, args);
 
@@ -44,7 +58,11 @@ pub fn execute(
         Ok(ForkResult::Parent { child }) => {
             info!("Spawned child process: {}", child);
             signal_handler.set_child(child);
-            wait_for_child(signal_handler)
+            let result = wait_for_child(signal_handler);
+            if let Some(session) = audit.as_mut() {
+                session.ingest_trace_output();
+            }
+            result
         }
         Ok(ForkResult::Child) => {
             exec_child(&cmd, &args)?;
@@ -94,9 +112,10 @@ fn exec_child(cmd: &str, args: &[CString]) -> Result<()> {
 }
 
 /// Create directories specified in the configuration.
-fn ensure_directories(config: &Config) -> Result<()> {
+fn ensure_directories(config: &Config, mut audit: Option<&mut AuditSession>) -> Result<()> {
     for dir in &config.runtime.ensure_dirs {
-        if !dir.path.exists() {
+        let existed = dir.path.exists();
+        if !existed {
             std::fs::create_dir_all(&dir.path).map_err(|e| {
                 UentryError::Io(std::io::Error::other(format!(
                     "Failed to create directory {:?}: {}",
@@ -104,6 +123,10 @@ fn ensure_directories(config: &Config) -> Result<()> {
                 )))
             })?;
             debug!("Created directory: {:?}", dir.path);
+        }
+
+        if let Some(session) = audit.as_deref_mut() {
+            session.record_ensured_directory(&dir.path, !existed);
         }
     }
     Ok(())
@@ -172,7 +195,7 @@ mod tests {
     #[test]
     fn test_ensure_directories_empty() {
         let config = Config::default();
-        let result = ensure_directories(&config);
+        let result = ensure_directories(&config, None);
         assert!(result.is_ok());
     }
 
@@ -184,7 +207,7 @@ mod tests {
         let mut config = Config::default();
         config.runtime.ensure_dirs = vec![crate::config::schema::DirConfig::new(temp_dir.clone())];
 
-        let result = ensure_directories(&config);
+        let result = ensure_directories(&config, None);
         assert!(result.is_ok());
         assert!(temp_dir.exists());
 
@@ -199,7 +222,7 @@ mod tests {
         let mut config = Config::default();
         config.runtime.ensure_dirs = vec![crate::config::schema::DirConfig::new(temp_dir.clone())];
 
-        let result = ensure_directories(&config);
+        let result = ensure_directories(&config, None);
         assert!(result.is_ok());
 
         let _ = std::fs::remove_dir_all(&temp_dir);

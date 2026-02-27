@@ -1,0 +1,6 @@
+FROM redis:7.2-alpine
+COPY uentry /uentry
+COPY uentry.secure.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry /tmp
+ENTRYPOINT ["/uentry", "--strict"]
+CMD ["redis-server", "--version"]

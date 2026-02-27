@@ -3,3 +3,4 @@
 mod adversarial;
 mod baseline;
 mod helpers;
+mod mainstream;

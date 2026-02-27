@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use uentry::{
+    audit::AuditSession,
     cli,
     config::{self, metadata::expand_config_env, profile::apply_profile},
     exec,
@@ -44,29 +45,68 @@ fn main() -> ExitCode {
 
     expand_config_env(&mut config);
 
+    let mut audit = AuditSession::from_config(&config.audit);
+
+    if let Some(session) = audit.as_mut() {
+        session.record_command(&args.command);
+        match uentry::security::preflight::PreflightCheck::new().run() {
+            Ok(report) => {
+                session.record_preflight_report(&report);
+                session.record_lifecycle_outcome("preflight_probe", true, None);
+            }
+            Err(e) => {
+                session.record_lifecycle_outcome("preflight_probe", false, Some(&e.to_string()));
+            }
+        }
+    }
+
     let mut lifecycle = LifecycleCoordinator::new(config.clone());
 
     if let Err(e) = lifecycle.run() {
+        if let Some(session) = audit.as_mut() {
+            session.record_lifecycle_outcome("lifecycle_run", false, Some(&e.to_string()));
+        }
         eprintln!("Lifecycle error: {}", e);
-        return ExitCode::from(1);
+        return exit_with_audit(1, &mut audit);
+    } else if let Some(session) = audit.as_mut() {
+        session.record_lifecycle_outcome("lifecycle_run", true, None);
     }
 
     if let Err(e) = lifecycle.run_pre_start() {
+        if let Some(session) = audit.as_mut() {
+            session.record_lifecycle_outcome("pre_start", false, Some(&e.to_string()));
+        }
         eprintln!("Pre-start error: {}", e);
-        return ExitCode::from(1);
+        return exit_with_audit(1, &mut audit);
+    } else if let Some(session) = audit.as_mut() {
+        session.record_lifecycle_outcome("pre_start", true, None);
     }
 
     if let Some(ref readiness_config) = config.app.readiness {
         let mut checker = ReadinessChecker::new(readiness_config.clone());
         match checker.wait_for_ready() {
-            Ok(uentry::health::readiness::ProbeResult::Ready) => {}
+            Ok(uentry::health::readiness::ProbeResult::Ready) => {
+                if let Some(session) = audit.as_mut() {
+                    session.record_lifecycle_outcome("readiness", true, None);
+                }
+            }
             Ok(_) => {
+                if let Some(session) = audit.as_mut() {
+                    session.record_lifecycle_outcome(
+                        "readiness",
+                        false,
+                        Some("probe did not become ready"),
+                    );
+                }
                 eprintln!("Readiness check failed");
-                return ExitCode::from(1);
+                return exit_with_audit(1, &mut audit);
             }
             Err(e) => {
+                if let Some(session) = audit.as_mut() {
+                    session.record_lifecycle_outcome("readiness", false, Some(&e.to_string()));
+                }
                 eprintln!("Readiness check error: {}", e);
-                return ExitCode::from(1);
+                return exit_with_audit(1, &mut audit);
             }
         }
     }
@@ -78,15 +118,37 @@ fn main() -> ExitCode {
         }
     }
 
-    let exit_code = match exec::execute(&args.command, &config, &mut signal_handler) {
-        Ok(code) => code,
+    let exit_code = match exec::execute(&args.command, &config, &mut signal_handler, audit.as_mut())
+    {
+        Ok(code) => {
+            if let Some(session) = audit.as_mut() {
+                session.record_exec_outcome(Some(code), None);
+            }
+            code
+        }
         Err(e) => {
+            if let Some(session) = audit.as_mut() {
+                session.record_exec_outcome(None, Some(&e.to_string()));
+            }
             eprintln!("Execution error: {}", e);
             1
         }
     };
 
-    let _ = lifecycle.run_post_stop();
+    match lifecycle.run_post_stop() {
+        Ok(()) => {
+            if let Some(session) = audit.as_mut() {
+                session.record_lifecycle_outcome("post_stop", true, None);
+            }
+        }
+        Err(e) => {
+            if let Some(session) = audit.as_mut() {
+                session.record_lifecycle_outcome("post_stop", false, Some(&e.to_string()));
+            }
+        }
+    }
+
+    finalize_audit(&mut audit);
 
     ExitCode::from(exit_code as u8)
 }
@@ -98,6 +160,35 @@ fn merge_cli_into_config(args: &cli::Cli, config: &mut config::Config) {
     if args.profile.is_some() {
         config.app.profile = args.profile.clone();
     }
+
+    if args.audit {
+        config.audit.enabled = true;
+    }
+    if args.audit_deep {
+        config.audit.enabled = true;
+        config.audit.deep_trace = true;
+    }
+    if let Some(path) = &args.audit_output {
+        config.audit.enabled = true;
+        config.audit.output = Some(path.clone());
+    }
+    if let Some(path) = &args.audit_profile_output {
+        config.audit.enabled = true;
+        config.audit.profile_output = Some(path.clone());
+    }
+}
+
+fn finalize_audit(audit: &mut Option<AuditSession>) {
+    if let Some(session) = audit.as_mut() {
+        if let Err(e) = session.finalize() {
+            eprintln!("Audit finalize error: {}", e);
+        }
+    }
+}
+
+fn exit_with_audit(code: u8, audit: &mut Option<AuditSession>) -> ExitCode {
+    finalize_audit(audit);
+    ExitCode::from(code)
 }
 
 fn run_diagnostics() {

@@ -1,0 +1,6 @@
+FROM python:3.12-alpine
+COPY uentry /uentry
+COPY uentry.vuln.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry
+ENTRYPOINT ["/uentry"]
+CMD ["python", "--version"]

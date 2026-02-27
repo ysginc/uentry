@@ -15,6 +15,26 @@ pub struct UentryTestContext {
     pub temp_dir: TempDir,
 }
 
+pub struct ForcedContainerCleanup {
+    container_id: String,
+}
+
+impl ForcedContainerCleanup {
+    pub fn new<I: testcontainers::Image>(container: &ContainerAsync<I>) -> Self {
+        Self {
+            container_id: container.id().to_string(),
+        }
+    }
+}
+
+impl Drop for ForcedContainerCleanup {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("docker")
+            .args(["rm", "-f", &self.container_id])
+            .output();
+    }
+}
+
 impl UentryTestContext {
     pub async fn new() -> Self {
         let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

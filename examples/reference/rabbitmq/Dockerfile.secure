@@ -1,0 +1,6 @@
+FROM rabbitmq:3.13-alpine
+COPY uentry /uentry
+COPY uentry.secure.yaml /etc/uentry/config.yaml
+RUN chmod +x /uentry && mkdir -p /etc/uentry /tmp
+ENTRYPOINT ["/uentry", "--strict"]
+CMD ["rabbitmq-server", "--version"]

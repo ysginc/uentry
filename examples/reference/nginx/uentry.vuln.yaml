@@ -1,0 +1,14 @@
+# INSECURE EXAMPLE: intentionally vulnerable configuration for testing.
+runtime:
+  strict: false
+  env:
+    LD_LIBRARY_PATH: /tmp/injected-lib
+
+security:
+  allow_root: true
+  no_new_privs: false
+  writable_paths:
+    - /
+
+audit:
+  enabled: false

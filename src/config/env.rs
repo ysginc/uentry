@@ -3,7 +3,7 @@
 //! This module handles reading configuration from environment variables
 //! prefixed with `UENTRY_`.
 
-use crate::config::schema::Config;
+use crate::config::schema::{AuditBackend, Config};
 use std::env;
 
 /// Load configuration from environment variables.
@@ -24,6 +24,11 @@ use std::env;
 /// | `UENTRY_WRITABLE_PATHS` | `security.writable_paths` (colon-separated) |
 /// | `UENTRY_PROFILE` | `app.profile` |
 /// | `UENTRY_APP_NAME` | `app.name` |
+/// | `UENTRY_AUDIT` | `audit.enabled` |
+/// | `UENTRY_AUDIT_DEEP` | `audit.deep_trace` |
+/// | `UENTRY_AUDIT_OUTPUT` | `audit.output` |
+/// | `UENTRY_AUDIT_PROFILE_OUTPUT` | `audit.profile_output` |
+/// | `UENTRY_AUDIT_BACKEND` | `audit.backend` |
 /// | `UENTRY_ENV_*` | `runtime.env.*` |
 pub fn load_from_env() -> Config {
     let mut config = Config::default();
@@ -31,6 +36,7 @@ pub fn load_from_env() -> Config {
     let runtime = &mut config.runtime;
     let app = &mut config.app;
     let security = &mut config.security;
+    let audit = &mut config.audit;
 
     if let Ok(val) = env::var("UENTRY_STRICT") {
         runtime.strict = val.parse().unwrap_or(false);
@@ -98,6 +104,32 @@ pub fn load_from_env() -> Config {
             .collect();
     }
 
+    if let Ok(val) = env::var("UENTRY_AUDIT") {
+        audit.enabled = val.parse().unwrap_or(false);
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_DEEP") {
+        audit.deep_trace = val.parse().unwrap_or(false);
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_OUTPUT") {
+        if !val.is_empty() {
+            audit.output = Some(std::path::PathBuf::from(val));
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_PROFILE_OUTPUT") {
+        if !val.is_empty() {
+            audit.profile_output = Some(std::path::PathBuf::from(val));
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_BACKEND") {
+        if let Some(backend) = parse_audit_backend(&val) {
+            audit.backend = backend;
+        }
+    }
+
     config
 }
 
@@ -145,6 +177,49 @@ pub fn merge_env_into_config(config: &mut Config) {
     }
     if !env_config.security.writable_paths.is_empty() {
         config.security.writable_paths = env_config.security.writable_paths;
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT") {
+        if let Ok(parsed) = val.parse::<bool>() {
+            config.audit.enabled = parsed;
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_DEEP") {
+        if let Ok(parsed) = val.parse::<bool>() {
+            config.audit.deep_trace = parsed;
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_OUTPUT") {
+        if val.is_empty() {
+            config.audit.output = None;
+        } else {
+            config.audit.output = Some(std::path::PathBuf::from(val));
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_PROFILE_OUTPUT") {
+        if val.is_empty() {
+            config.audit.profile_output = None;
+        } else {
+            config.audit.profile_output = Some(std::path::PathBuf::from(val));
+        }
+    }
+
+    if let Ok(val) = env::var("UENTRY_AUDIT_BACKEND") {
+        if let Some(backend) = parse_audit_backend(&val) {
+            config.audit.backend = backend;
+        }
+    }
+}
+
+fn parse_audit_backend(value: &str) -> Option<AuditBackend> {
+    match value.to_ascii_lowercase().as_str() {
+        "auto" => Some(AuditBackend::Auto),
+        "strace" => Some(AuditBackend::Strace),
+        "none" => Some(AuditBackend::None),
+        _ => None,
     }
 }
 
@@ -272,5 +347,71 @@ mod tests {
         merge_env_into_config(&mut config);
 
         assert_eq!(config.runtime.user, Some("original".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn test_load_from_env_audit_fields() {
+        clear_uentry_env();
+        env::set_var("UENTRY_AUDIT", "true");
+        env::set_var("UENTRY_AUDIT_DEEP", "true");
+        env::set_var("UENTRY_AUDIT_OUTPUT", "/tmp/audit.json");
+        env::set_var("UENTRY_AUDIT_PROFILE_OUTPUT", "/tmp/profile.yaml");
+        env::set_var("UENTRY_AUDIT_BACKEND", "strace");
+
+        let config = load_from_env();
+        assert!(config.audit.enabled);
+        assert!(config.audit.deep_trace);
+        assert_eq!(config.audit.output, Some(PathBuf::from("/tmp/audit.json")));
+        assert_eq!(
+            config.audit.profile_output,
+            Some(PathBuf::from("/tmp/profile.yaml"))
+        );
+        assert!(matches!(config.audit.backend, AuditBackend::Strace));
+
+        env::remove_var("UENTRY_AUDIT");
+        env::remove_var("UENTRY_AUDIT_DEEP");
+        env::remove_var("UENTRY_AUDIT_OUTPUT");
+        env::remove_var("UENTRY_AUDIT_PROFILE_OUTPUT");
+        env::remove_var("UENTRY_AUDIT_BACKEND");
+    }
+
+    #[test]
+    #[serial]
+    fn test_merge_env_into_config_audit_explicit_override() {
+        clear_uentry_env();
+
+        let mut config = Config::default();
+        config.audit.enabled = true;
+        config.audit.deep_trace = true;
+        config.audit.output = Some(PathBuf::from("/tmp/original.json"));
+        config.audit.profile_output = Some(PathBuf::from("/tmp/original-profile.yaml"));
+        config.audit.backend = AuditBackend::Auto;
+
+        env::set_var("UENTRY_AUDIT", "false");
+        env::set_var("UENTRY_AUDIT_DEEP", "false");
+        env::set_var("UENTRY_AUDIT_OUTPUT", "/tmp/override.json");
+        env::set_var("UENTRY_AUDIT_PROFILE_OUTPUT", "/tmp/override-profile.yaml");
+        env::set_var("UENTRY_AUDIT_BACKEND", "none");
+
+        merge_env_into_config(&mut config);
+
+        assert!(!config.audit.enabled);
+        assert!(!config.audit.deep_trace);
+        assert_eq!(
+            config.audit.output,
+            Some(PathBuf::from("/tmp/override.json"))
+        );
+        assert_eq!(
+            config.audit.profile_output,
+            Some(PathBuf::from("/tmp/override-profile.yaml"))
+        );
+        assert!(matches!(config.audit.backend, AuditBackend::None));
+
+        env::remove_var("UENTRY_AUDIT");
+        env::remove_var("UENTRY_AUDIT_DEEP");
+        env::remove_var("UENTRY_AUDIT_OUTPUT");
+        env::remove_var("UENTRY_AUDIT_PROFILE_OUTPUT");
+        env::remove_var("UENTRY_AUDIT_BACKEND");
     }
 }

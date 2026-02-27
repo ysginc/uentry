@@ -40,6 +40,7 @@ CMD ["/bin/sh", "-c", "echo 'hello from derived alpine' && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
@@ -84,6 +85,7 @@ CMD ["/bin/sh", "-c", "cat /app/original.txt && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
@@ -136,6 +138,7 @@ CMD ["/bin/sh", "-c", "echo $FROM_CONFIG && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let stdout = container
         .stdout_to_vec()
@@ -186,6 +189,7 @@ CMD ["/app/start.sh"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
@@ -229,6 +233,7 @@ CMD ["/bin/sh", "-c", "busybox | head -1 && sleep 30"]
             .start()
             .await
             .expect("Failed to start container");
+    let _cleanup = ForcedContainerCleanup::new(&container);
 
     let mut exec = container
         .exec(ExecCommand::new(vec![
