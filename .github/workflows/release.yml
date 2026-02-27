@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -170,6 +172,62 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+  release-latest:
+    name: Create Latest Release (main)
+    needs: [build, packages]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Update latest tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f latest "${GITHUB_SHA}"
+          git push origin refs/tags/latest --force
+
+      - name: Remove existing latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+
+      - name: Recreate latest tag
+        run: |
+          git tag -f latest "${GITHUB_SHA}"
+          git push origin refs/tags/latest --force
+
+      - name: Create Latest Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: latest
+          name: latest
+          target_commitish: ${{ github.sha }}
+          files: |
+            artifacts/**/uentry-*.tar.gz
+            artifacts/**/uentry-*.sha256
+            artifacts/**/uentry-*.deb
+            artifacts/**/uentry-*.rpm
+            artifacts/**/uentry-*.apk
+          draft: false
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Rolling prerelease from `main`.
+
+            Stable releases are published from version tags (`v*`).
 
   container:
     name: Build Container Image

@@ -25,6 +25,9 @@ Running containers as PID 1 is tricky. You need to handle signals, reap zombies,
 
 **Download from releases:**
 
+> `releases/latest` is a rolling **prerelease** built from `main`.
+> For stable builds, use versioned tags (`v*`) under the Releases page.
+
 ```bash
 # Binary (glibc Linux)
 curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-gnu.tar.gz | tar xz
@@ -323,6 +326,9 @@ CMD ["redis-server"]
 ## Distribution
 
 Each release includes:
+
+- `latest` prerelease: rolling artifacts from `main`
+- `v*` tagged releases: stable versioned artifacts
 
 | Format | Architecture | Use Case |
 |--------|--------------|----------|
