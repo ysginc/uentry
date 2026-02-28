@@ -69,7 +69,7 @@ jobs:
           docker --version
           docker info
       - name: Build static binary
-        run: cargo build --release --target x86_64-unknown-linux-musl
+        run: cargo build --release --target x86_64-unknown-linux-musl --bins
       - name: Run container tests
         run: cargo test --test container_tests
 

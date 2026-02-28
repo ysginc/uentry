@@ -37,7 +37,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'strict root test' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo strict-root-block"]
 "#;
 
     let image = build_test_image(&ctx, "strict-root-block", dockerfile).await;
@@ -79,7 +79,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'strict override attempt' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo strict-override-attempt"]
 "#;
 
     let image = build_test_image(&ctx, "strict-override-env", dockerfile).await;
@@ -119,7 +119,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'env injection test' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo env-injection-attempt"]
 "#;
 
     let image = build_test_image(&ctx, "strict-env-injection", dockerfile).await;
@@ -161,7 +161,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'ld preload injection test' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo ld-preload-injection-attempt"]
 "#;
 
     let image = build_test_image(&ctx, "strict-ld-preload", dockerfile).await;
@@ -200,7 +200,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'docker socket mount test' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo docker-socket-mount-attempt"]
 "#;
 
     let image = build_test_image(&ctx, "strict-docker-socket", dockerfile).await;
@@ -245,7 +245,7 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo 'docker socket mount alias test' && sleep 1"]
+CMD ["/bin/sh", "-c", "echo run-docker-socket-mount-attempt"]
 "#;
 
     let image = build_test_image(&ctx, "strict-run-docker-socket", dockerfile).await;
@@ -331,15 +331,15 @@ COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 USER root
 ENTRYPOINT ["/uentry", "--strict"]
-CMD ["/bin/sh", "-c", "echo hacked >/proc/sys/kernel/hostname 2>/tmp/proc-sys.log && echo SYSCTL_ALLOWED || echo SYSCTL_BLOCKED"]
+CMD ["/bin/sh", "-c", "echo hacked >/proc/sys/kernel/hostname 2>/tmp/proc-sys.log && echo PROC_SYS_ALLOWED || echo PROC_SYS_BLOCKED"]
 "#;
 
     let image = build_test_image(&ctx, "strict-proc-sys-reconfigure", dockerfile).await;
 
     let output = run_container(&image, &[]).await;
     let logs = combined_logs(&output);
-    let sysctl_allowed = logs.lines().any(|line| line.trim() == "SYSCTL_ALLOWED");
-    let sysctl_blocked = logs.lines().any(|line| line.trim() == "SYSCTL_BLOCKED");
+    let sysctl_allowed = logs.lines().any(|line| line.trim() == "PROC_SYS_ALLOWED");
+    let sysctl_blocked = logs.lines().any(|line| line.trim() == "PROC_SYS_BLOCKED");
 
     assert!(
         !sysctl_allowed,

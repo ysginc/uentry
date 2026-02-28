@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ysginc/uentry/actions/workflows/ci.yml/badge.svg)](https://github.com/ysginc/uentry/actions/workflows/ci.yml)
 [![Release](https://github.com/ysginc/uentry/actions/workflows/release.yml/badge.svg)](https://github.com/ysginc/uentry/actions/workflows/release.yml)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 > **⚠️ Work in Progress**
 >
@@ -30,11 +30,11 @@ Running containers as PID 1 is tricky. You need to handle signals, reap zombies,
 
 ```bash
 # Binary (glibc Linux)
-curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-gnu.tar.gz | tar xz
+curl -sL https://github.com/ysginc/uentry/releases/download/latest/uentry-x86_64-gnu.tar.gz | tar xz
 sudo mv uentry /usr/local/bin/
 
 # Binary (Alpine/static musl)
-curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-musl.tar.gz | tar xz
+curl -sL https://github.com/ysginc/uentry/releases/download/latest/uentry-x86_64-musl.tar.gz | tar xz
 sudo mv uentry /usr/local/bin/
 ```
 
@@ -42,17 +42,55 @@ sudo mv uentry /usr/local/bin/
 
 ```bash
 # Debian/Ubuntu
-curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-gnu.deb -o uentry.deb
+curl -sL https://github.com/ysginc/uentry/releases/download/latest/uentry-x86_64-gnu.deb -o uentry.deb
 sudo dpkg -i uentry.deb
 
 # RHEL/CentOS/Fedora
-curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-gnu.rpm -o uentry.rpm
+curl -sL https://github.com/ysginc/uentry/releases/download/latest/uentry-x86_64-gnu.rpm -o uentry.rpm
 sudo rpm -i uentry.rpm
 
 # Alpine
-curl -sL https://github.com/ysginc/uentry/releases/latest/download/uentry-x86_64-musl.apk -o uentry.apk
+curl -sL https://github.com/ysginc/uentry/releases/download/latest/uentry-x86_64-musl.apk -o uentry.apk
 sudo apk add --allow-untrusted uentry.apk
 ```
+
+**Signed package repositories (GitHub Pages):**
+
+Repository root: `https://ysginc.github.io/uentry`
+
+```bash
+# Debian/Ubuntu (stable channel)
+curl -fsSL https://ysginc.github.io/uentry/keys/uentry-packages.asc \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/uentry-packages.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/uentry-packages.gpg] https://ysginc.github.io/uentry/deb/stable ./" \
+  | sudo tee /etc/apt/sources.list.d/uentry.list >/dev/null
+sudo apt-get update
+sudo apt-get install -y uentry
+
+# RHEL/CentOS/Fedora (stable channel)
+sudo rpm --import https://ysginc.github.io/uentry/keys/uentry-packages.asc
+cat <<'EOF' | sudo tee /etc/yum.repos.d/uentry.repo >/dev/null
+[uentry-stable]
+name=uentry stable
+baseurl=https://ysginc.github.io/uentry/rpm/stable
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://ysginc.github.io/uentry/keys/uentry-packages.asc
+EOF
+sudo dnf install -y uentry
+
+# Alpine (stable channel, x86_64 example)
+sudo wget -qO /etc/apk/keys/uentry-packages.rsa.pub \
+  https://ysginc.github.io/uentry/apk/keys/uentry-packages.rsa.pub
+echo "https://ysginc.github.io/uentry/apk/stable/x86_64" \
+  | sudo tee -a /etc/apk/repositories >/dev/null
+sudo apk update
+sudo apk add uentry
+```
+
+Switch to rolling prerelease channel by replacing `stable` with `latest` in repository URLs.
 
 **Container image:**
 
@@ -110,15 +148,15 @@ CMD ["/app/server"]
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **PID 1 Supervisor** | Signal forwarding, zombie reaping, exit code propagation |
-| **Profiles** | Built-in presets for k8s, web, worker workloads |
-| **Lifecycle Hooks** | Pre-start and post-stop commands with timeouts |
-| **Secrets Management** | File↔env injection with automatic log redaction |
-| **Readiness Probes** | HTTP, TCP, and exec-based health checks |
-| **Strict Mode** | Fail-closed security posture with preflight checks |
-| **Privilege Dropping** | UID/GID, supplementary groups, no_new_privs |
+| Feature                | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| **PID 1 Supervisor**   | Signal forwarding, zombie reaping, exit code propagation |
+| **Profiles**           | Built-in presets for k8s, web, worker workloads          |
+| **Lifecycle Hooks**    | Pre-start and post-stop commands with timeouts           |
+| **Secrets Management** | File↔env injection with automatic log redaction          |
+| **Readiness Probes**   | HTTP, TCP, and exec-based health checks                  |
+| **Strict Mode**        | Fail-closed security posture with preflight checks       |
+| **Privilege Dropping** | UID/GID, supplementary groups, no_new_privs              |
 
 ## Configuration
 
@@ -168,7 +206,7 @@ app:
 
 ### CLI Reference
 
-```
+```text
 uentry [OPTIONS] [--] <COMMAND>...
 
 Arguments:
@@ -188,12 +226,12 @@ Options:
 
 ## Profiles
 
-| Profile | Use Case | Key Features |
-|---------|----------|--------------|
-| `baseline` | General purpose | Safe defaults, signal forwarding |
-| `k8s` | Kubernetes | K8s env vars, service account token |
-| `web` | HTTP servers | HTTP readiness probe, startup grace |
-| `worker` | Background jobs | Extended timeouts for graceful shutdown |
+| Profile    | Use Case        | Key Features                            |
+| ---------- | --------------- | --------------------------------------- |
+| `baseline` | General purpose | Safe defaults, signal forwarding        |
+| `k8s`      | Kubernetes      | K8s env vars, service account token     |
+| `web`      | HTTP servers    | HTTP readiness probe, startup grace     |
+| `worker`   | Background jobs | Extended timeouts for graceful shutdown |
 
 ```bash
 # HTTP server with readiness probe
@@ -225,6 +263,7 @@ security:
 ```
 
 Strict mode refuses to start if:
+
 - Running as root without privilege drop config
 - Root filesystem is writable (unless allowlisted)
 - Dangerous mounts detected (docker.sock, etc.)
@@ -249,7 +288,7 @@ secrets:
 
 uentry runs a phased startup:
 
-```
+```text
 preflight → sanitize → fs_prep → secrets → security → hooks → exec
 ```
 
@@ -306,21 +345,21 @@ Vulnerable variants intentionally disable strict protections for exploit-path te
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `UENTRY_STRICT` | Enable strict mode (`true`/`false`) |
-| `UENTRY_USER` | User to run as |
-| `UENTRY_GROUP` | Group to run as |
-| `UENTRY_CWD` | Working directory |
-| `UENTRY_PROFILE` | Profile name |
-| `UENTRY_CONFIG` | Config file path |
-| `UENTRY_LOG_FORMAT` | `json` or `text` |
-| `UENTRY_LOG_LEVEL` | `trace`, `debug`, `info`, `warn`, `error` |
-| `UENTRY_AUDIT` | Enable audit reporting (`true`/`false`) |
-| `UENTRY_AUDIT_DEEP` | Enable deep audit tracing (`true`/`false`) |
-| `UENTRY_AUDIT_OUTPUT` | Audit report output path |
-| `UENTRY_AUDIT_PROFILE_OUTPUT` | Audit profile output path |
-| `UENTRY_AUDIT_BACKEND` | Audit backend (`auto`, `strace`, `none`) |
+| Variable                      | Description                                |
+| ----------------------------- | ------------------------------------------ |
+| `UENTRY_STRICT`               | Enable strict mode (`true`/`false`)        |
+| `UENTRY_USER`                 | User to run as                             |
+| `UENTRY_GROUP`                | Group to run as                            |
+| `UENTRY_CWD`                  | Working directory                          |
+| `UENTRY_PROFILE`              | Profile name                               |
+| `UENTRY_CONFIG`               | Config file path                           |
+| `UENTRY_LOG_FORMAT`           | `json` or `text`                           |
+| `UENTRY_LOG_LEVEL`            | `trace`, `debug`, `info`, `warn`, `error`  |
+| `UENTRY_AUDIT`                | Enable audit reporting (`true`/`false`)    |
+| `UENTRY_AUDIT_DEEP`           | Enable deep audit tracing (`true`/`false`) |
+| `UENTRY_AUDIT_OUTPUT`         | Audit report output path                   |
+| `UENTRY_AUDIT_PROFILE_OUTPUT` | Audit profile output path                  |
+| `UENTRY_AUDIT_BACKEND`        | Audit backend (`auto`, `strace`, `none`)   |
 
 ## Distribution
 
@@ -329,19 +368,41 @@ Each release includes:
 - `latest` prerelease: rolling artifacts from `main`
 - `v*` tagged releases: stable versioned artifacts
 
-| Format | Architecture | Use Case |
-|--------|--------------|----------|
-| `uentry-x86_64-gnu.tar.gz` | x86_64 | Debian/Ubuntu/RHEL/Fedora binary |
-| `uentry-aarch64-gnu.tar.gz` | aarch64 | ARM64 Debian/Ubuntu/RHEL/Fedora binary |
-| `uentry-x86_64-musl.tar.gz` | x86_64 | Alpine/static binary |
-| `uentry-aarch64-musl.tar.gz` | aarch64 | ARM64 Alpine/static binary |
-| `uentry-x86_64-gnu.deb` | x86_64 | Debian/Ubuntu |
-| `uentry-aarch64-gnu.deb` | aarch64 | Debian/Ubuntu (ARM) |
-| `uentry-x86_64-gnu.rpm` | x86_64 | RHEL/CentOS/Fedora |
-| `uentry-aarch64-gnu.rpm` | aarch64 | RHEL/CentOS/Fedora (ARM) |
-| `uentry-x86_64-musl.apk` | x86_64 | Alpine Linux |
-| `uentry-aarch64-musl.apk` | aarch64 | Alpine Linux (ARM) |
-| `ghcr.io/ysginc/uentry` | multi-arch | Container image |
+| Format                       | Architecture | Use Case                               |
+| ---------------------------- | ------------ | -------------------------------------- |
+| `uentry-x86_64-gnu.tar.gz`   | x86_64       | Debian/Ubuntu/RHEL/Fedora binary       |
+| `uentry-aarch64-gnu.tar.gz`  | aarch64      | ARM64 Debian/Ubuntu/RHEL/Fedora binary |
+| `uentry-x86_64-musl.tar.gz`  | x86_64       | Alpine/static binary                   |
+| `uentry-aarch64-musl.tar.gz` | aarch64      | ARM64 Alpine/static binary             |
+| `uentry-x86_64-gnu.deb`      | x86_64       | Debian/Ubuntu                          |
+| `uentry-aarch64-gnu.deb`     | aarch64      | Debian/Ubuntu (ARM)                    |
+| `uentry-x86_64-gnu.rpm`      | x86_64       | RHEL/CentOS/Fedora                     |
+| `uentry-aarch64-gnu.rpm`     | aarch64      | RHEL/CentOS/Fedora (ARM)               |
+| `uentry-x86_64-musl.apk`     | x86_64       | Alpine Linux                           |
+| `uentry-aarch64-musl.apk`    | aarch64      | Alpine Linux (ARM)                     |
+| `ghcr.io/ysginc/uentry`      | multi-arch   | Container image                        |
+
+### Package Repositories (Pages)
+
+Signed package repositories are published to GitHub Pages for both channels:
+
+- Base URL: `https://ysginc.github.io/uentry`
+- Stable channel: `/deb/stable`, `/rpm/stable`, `/apk/stable/<arch>`
+- Rolling channel: `/deb/latest`, `/rpm/latest`, `/apk/latest/<arch>`
+- Signing keys:
+  - APT/RPM: `/keys/uentry-packages.asc`
+  - APT keyring (binary): `/keys/uentry-packages.gpg`
+  - APK: `/apk/keys/uentry-packages.rsa.pub`
+
+Maintainers must define these repository secrets before enabling package repo publishing:
+
+- `PACKAGE_REPO_GPG_PRIVATE_KEY` (armored private key for APT/RPM metadata)
+- `PACKAGE_REPO_GPG_KEY_ID` (key identifier used for signing)
+- `PACKAGE_REPO_GPG_PASSPHRASE` (optional; required when key is passphrase-protected)
+- `PACKAGE_REPO_APK_PRIVATE_KEY_B64` (base64-encoded Alpine `*.rsa` private key)
+- `PACKAGE_REPO_APK_PUBLIC_KEY` (Alpine `*.rsa.pub` public key)
+
+The package-repo workflow also verifies GitHub Pages configuration before publish. It attempts to create Pages if missing and requires Pages build type `workflow` (Source: `GitHub Actions`).
 
 ## Development
 
@@ -361,6 +422,10 @@ cargo fmt
 # Release build (static)
 cargo build --release --target x86_64-unknown-linux-musl
 
+# Build test probe binary used by container security tests
+# Source: tests/bin/uentry-test-probe.rs
+cargo build --release --target x86_64-unknown-linux-musl --bin uentry-test-probe
+
 # Run container tests (requires Docker)
 cargo test --test container_tests
 
@@ -376,7 +441,6 @@ make packages
 - [Profile Catalog](docs/reference/profiles.md) - Built-in profiles
 - [Security Model](docs/reference/security.md) - Threat model and mitigations
 - [Roadmap](docs/ROADMAP.md) - Project status and future plans
-- [Copyright Notice](COPYRIGHT) - Project ownership and licensing metadata
 
 ## Contributing
 
@@ -385,19 +449,19 @@ make packages
 
 ## Comparison
 
-| Feature | uentry | tini | s6 |
-|---------|--------|------|-----|
-| PID 1 supervision | ✅ | ✅ | ✅ |
-| Signal forwarding | ✅ | ✅ | ✅ |
-| Zombie reaping | ✅ | ✅ | ✅ |
-| Config files | ✅ | ❌ | ✅ |
-| Profiles | ✅ | ❌ | ❌ |
-| Lifecycle hooks | ✅ | ❌ | ✅ |
-| Secrets management | ✅ | ❌ | ❌ |
-| Readiness probes | ✅ | ❌ | ❌ |
-| Strict mode | ✅ | ❌ | ❌ |
-| Binary size | ~1.5MB | ~20KB | ~500KB |
+| Feature            | uentry | tini  | s6     |
+| ------------------ | ------ | ----- | ------ |
+| PID 1 supervision  | ✅     | ✅    | ✅     |
+| Signal forwarding  | ✅     | ✅    | ✅     |
+| Zombie reaping     | ✅     | ✅    | ✅     |
+| Config files       | ✅     | ❌    | ✅     |
+| Profiles           | ✅     | ❌    | ❌     |
+| Lifecycle hooks    | ✅     | ❌    | ✅     |
+| Secrets management | ✅     | ❌    | ❌     |
+| Readiness probes   | ✅     | ❌    | ❌     |
+| Strict mode        | ✅     | ❌    | ❌     |
+| Binary size        | ~1.5MB | ~20KB | ~500KB |
 
 ## License
 
-AGPL-3.0-or-later
+AGPL-3.0-only

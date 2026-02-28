@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0+"
 
+[[bin]]
+name = "uentry-test-probe"
+path = "tests/bin/uentry-test-probe.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
 libc = "0.2"

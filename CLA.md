@@ -10,7 +10,7 @@ By submitting a contribution, you agree to the terms below.
 - **Project**: the `uentry` repository and related materials.
 - **Contribution**: any code, documentation, tests, build scripts, or other material submitted to the Project.
 - **You**: the individual contributor, or the organization you represent.
-- **Maintainer**: YSG Inc. and its successors/assigns.
+- **Maintainer**: Yorktown Systems Group, Inc. and its successors/assigns.
 
 ## 2. Copyright Grant
 

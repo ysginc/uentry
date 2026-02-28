@@ -6,13 +6,14 @@
 //!
 //! Container tests require Docker to be available. They build and run
 //! actual containers with uentry as the entrypoint.
+//! The test probe binary source is in `tests/bin/uentry-test-probe.rs`.
 //!
 //! ```bash
-//! # Build uentry first (static binary required)
-//! cargo build --release --target x86_64-unknown-linux-musl
+//! # Build required binaries first (static binaries required)
+//! cargo build --release --target x86_64-unknown-linux-musl --bin uentry --bin uentry-test-probe
 //!
 //! # Or use local dynamic binary
-//! cargo build --release
+//! cargo build --release --bin uentry --bin uentry-test-probe
 //!
 //! # Run container tests
 //! cargo test --test container_tests

@@ -1,4 +1,4 @@
-use super::helpers::ensure_docker;
+use super::helpers::{combined_logs, ensure_docker, run_container};
 use crate::container::fixtures::*;
 use std::time::Duration;
 use testcontainers::core::ExecCommand;
@@ -198,30 +198,16 @@ COPY uentry /uentry
 COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 ENTRYPOINT ["/uentry"]
-CMD ["/bin/sh", "-c", "grep NoNewPrivs /proc/self/status && sleep 30"]
+CMD ["/bin/sh", "-c", "grep NoNewPrivs /proc/self/status"]
 "#;
 
-    let _image = build_test_image(&ctx, "no-new-privs", dockerfile).await;
-
-    let container: ContainerAsync<GenericImage> =
-        GenericImage::new("uentry-test-no-new-privs", "latest")
-            .with_wait_for(WaitFor::Duration {
-                length: Duration::from_secs(3),
-            })
-            .start()
-            .await
-            .expect("Failed to start container");
-    let _cleanup = ForcedContainerCleanup::new(&container);
-
-    let stdout = container
-        .stdout_to_vec()
-        .await
-        .expect("Failed to read container logs");
-    let stdout_str = String::from_utf8_lossy(&stdout);
+    let image = build_test_image(&ctx, "no-new-privs", dockerfile).await;
+    let output = run_container(&image, &[]).await;
+    let logs = combined_logs(&output);
     assert!(
-        stdout_str.contains("NoNewPrivs:\t1"),
+        logs.contains("NoNewPrivs:\t1"),
         "NoNewPrivs should be 1, got: {}",
-        stdout_str
+        logs
     );
 }
 
@@ -249,30 +235,21 @@ COPY uentry /uentry
 COPY config.yaml /etc/uentry/config.yaml
 RUN chmod +x /uentry && mkdir -p /etc/uentry
 ENTRYPOINT ["/uentry"]
-CMD ["/bin/sh", "-c", "printenv | grep -E 'APP_MODE|DEBUG' && sleep 30"]
+CMD ["/bin/sh", "-c", "printenv | grep -E 'APP_MODE|DEBUG'"]
 "#;
 
-    let _image = build_test_image(&ctx, "env-config", dockerfile).await;
-
-    let container: ContainerAsync<GenericImage> =
-        GenericImage::new("uentry-test-env-config", "latest")
-            .with_wait_for(WaitFor::Duration {
-                length: Duration::from_secs(3),
-            })
-            .start()
-            .await
-            .expect("Failed to start container");
-    let _cleanup = ForcedContainerCleanup::new(&container);
-
-    let stdout = container
-        .stdout_to_vec()
-        .await
-        .expect("Failed to read container logs");
-    let stdout_str = String::from_utf8_lossy(&stdout);
+    let image = build_test_image(&ctx, "env-config", dockerfile).await;
+    let output = run_container(&image, &[]).await;
+    let logs = combined_logs(&output);
     assert!(
-        stdout_str.contains("APP_MODE=production"),
+        logs.contains("APP_MODE=production"),
         "Expected APP_MODE=production in logs, got: {}",
-        stdout_str
+        logs
+    );
+    assert!(
+        logs.contains("DEBUG=false"),
+        "Expected DEBUG=false in logs, got: {}",
+        logs
     );
 }
 

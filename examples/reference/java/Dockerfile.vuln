@@ -1,6 +1,17 @@
 FROM eclipse-temurin:21-jre
-COPY uentry /uentry
 COPY uentry.vuln.yaml /etc/uentry/config.yaml
-RUN chmod +x /uentry && mkdir -p /etc/uentry
+RUN set -eux; \
+	arch="$(uname -m)"; \
+	case "$arch" in \
+		x86_64|amd64) release_arch="x86_64" ;; \
+		aarch64|arm64) release_arch="aarch64" ;; \
+		*) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL "https://github.com/ysginc/uentry/releases/download/latest/uentry-${release_arch}-gnu.deb" -o /tmp/uentry.deb; \
+	dpkg -i /tmp/uentry.deb; \
+	ln -sf "$(command -v uentry)" /uentry; \
+	chmod +x /uentry; \
+	mkdir -p /etc/uentry; \
+	rm -f /tmp/uentry.deb
 ENTRYPOINT ["/uentry"]
 CMD ["java", "-version"]
