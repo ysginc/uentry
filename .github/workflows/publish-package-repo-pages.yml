@@ -9,6 +9,12 @@ on:
       - edited
       - deleted
   workflow_dispatch:
+    inputs:
+      allow_unsigned_fallback:
+        description: Publish unsigned metadata if signing keys are missing
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -93,7 +99,10 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Validate required signing secrets
+      - name: Resolve signing mode
+        id: signing
+        env:
+          ALLOW_UNSIGNED_FALLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_unsigned_fallback || 'false' }}
         run: |
           set -euo pipefail
           required=(
@@ -102,12 +111,30 @@ jobs:
             PACKAGE_REPO_APK_PRIVATE_KEY_B64
             PACKAGE_REPO_APK_PUBLIC_KEY
           )
+
+          missing=()
           for key in "${required[@]}"; do
             if [[ -z "${!key:-}" ]]; then
-              echo "Missing required secret: ${key}"
-              exit 1
+              missing+=("$key")
             fi
           done
+
+          if [[ ${#missing[@]} -eq 0 ]]; then
+            echo "Signing mode: signed"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Missing signing secrets: ${missing[*]}"
+          if [[ "$ALLOW_UNSIGNED_FALLBACK" == "true" ]]; then
+            echo "Signing mode: unsigned fallback enabled"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Unsigned fallback is disabled."
+          echo "Provide signing secrets or run workflow_dispatch with allow_unsigned_fallback=true."
+          exit 1
 
       - name: Mirror package assets from releases
         env:
@@ -202,6 +229,7 @@ jobs:
           PY
 
       - name: Prepare GPG keyring
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           export GNUPGHOME="$RUNNER_TEMP/gnupg"
@@ -220,6 +248,8 @@ jobs:
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
 
       - name: Generate RPM metadata
+        env:
+          SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
         run: |
           set -euo pipefail
 
@@ -242,10 +272,14 @@ jobs:
             fi
 
             createrepo_c --update "$repo_dir"
-            sign_detached "${repo_dir}/repodata/repomd.xml" "${repo_dir}/repodata/repomd.xml.asc"
+            if [[ "$SIGNING_ENABLED" == "true" ]]; then
+              sign_detached "${repo_dir}/repodata/repomd.xml" "${repo_dir}/repodata/repomd.xml.asc"
+            fi
           done
 
       - name: Generate DEB metadata
+        env:
+          SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
         run: |
           set -euo pipefail
 
@@ -283,30 +317,40 @@ jobs:
             dpkg-scanpackages --multiversion pool /dev/null > Packages
             gzip -kf Packages
             apt-ftparchive release . > Release
-            sign_detached Release Release.gpg
-            sign_inline Release InRelease
+            if [[ "$SIGNING_ENABLED" == "true" ]]; then
+              sign_detached Release Release.gpg
+              sign_inline Release InRelease
+            fi
             popd >/dev/null
           done
 
       - name: Generate and sign APK indexes
+        env:
+          SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
         run: |
           set -euo pipefail
 
-          mkdir -p site/apk/keys
-          printf '%s\n' "$PACKAGE_REPO_APK_PUBLIC_KEY" > site/apk/keys/uentry-packages.rsa.pub
+          if [[ "$SIGNING_ENABLED" == "true" ]]; then
+            mkdir -p site/apk/keys
+            printf '%s\n' "$PACKAGE_REPO_APK_PUBLIC_KEY" > site/apk/keys/uentry-packages.rsa.pub
+          fi
 
           docker run --rm \
             -e PACKAGE_REPO_APK_PRIVATE_KEY_B64 \
             -e PACKAGE_REPO_APK_PUBLIC_KEY \
+            -e SIGNING_ENABLED \
             -v "$PWD/site:/site" \
             alpine:3.22 \
             sh -euc '
-              apk add --no-cache apk-tools alpine-sdk
-
-              mkdir -p /keys
-              printf "%s" "$PACKAGE_REPO_APK_PRIVATE_KEY_B64" | base64 -d > /keys/uentry-packages.rsa
-              printf "%s\n" "$PACKAGE_REPO_APK_PUBLIC_KEY" > /keys/uentry-packages.rsa.pub
-              chmod 600 /keys/uentry-packages.rsa
+              if [ "$SIGNING_ENABLED" = "true" ]; then
+                apk add --no-cache apk-tools alpine-sdk
+                mkdir -p /keys
+                printf "%s" "$PACKAGE_REPO_APK_PRIVATE_KEY_B64" | base64 -d > /keys/uentry-packages.rsa
+                printf "%s\n" "$PACKAGE_REPO_APK_PUBLIC_KEY" > /keys/uentry-packages.rsa.pub
+                chmod 600 /keys/uentry-packages.rsa
+              else
+                apk add --no-cache apk-tools
+              fi
 
               for channel in stable latest; do
                 for arch_dir in /site/apk/$channel/*; do
@@ -321,7 +365,9 @@ jobs:
                   fi
 
                   apk index --output APKINDEX.tar.gz ./*.apk
-                  abuild-sign -k /keys/uentry-packages.rsa APKINDEX.tar.gz
+                  if [ "$SIGNING_ENABLED" = "true" ]; then
+                    abuild-sign -k /keys/uentry-packages.rsa APKINDEX.tar.gz
+                  fi
                 done
               done
             '
