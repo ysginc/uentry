@@ -1,4 +1,4 @@
-FROM alpine:3.23 AS uentry-installer
+FROM alpine AS uentry-installer
 RUN set -eux; \
 	arch="$(uname -m)"; \
 	case "$arch" in \
@@ -6,8 +6,9 @@ RUN set -eux; \
 		aarch64|arm64) release_arch="aarch64" ;; \
 		*) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
 	esac; \
-	wget -qO /tmp/uentry.apk "https://github.com/ysginc/uentry/releases/download/latest/uentry-${release_arch}-musl.apk"; \
-	apk add --no-cache --allow-untrusted /tmp/uentry.apk
+	wget -qO /etc/apk/keys/uentry-packages.rsa.pub "https://ysginc.github.io/uentry/apk/keys/uentry-packages.rsa.pub"; \
+	echo "https://ysginc.github.io/uentry/apk/latest/${release_arch}" >> /etc/apk/repositories; \
+	apk add --no-cache uentry
 
 FROM prom/prometheus:v2.55.1
 COPY --from=uentry-installer /usr/bin/uentry /uentry
