@@ -8,10 +8,9 @@ RUN set -eux; \
 		aarch64|arm64) release_arch="aarch64" ;; \
 		*) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
 	esac; \
-	wget -qO /etc/apk/keys/uentry-packages.rsa.pub "https://ysginc.github.io/uentry/apk/keys/uentry-packages.rsa.pub"; \
-	echo "https://ysginc.github.io/uentry/apk/latest/${release_arch}" >> /etc/apk/repositories; \
-	apk add --no-cache uentry; \
-	ln -sf "$(command -v uentry)" /uentry; \
+	mkdir -p /usr/local/bin; \
+	wget -qO- "https://github.com/ysginc/uentry/releases/download/latest/uentry-${release_arch}-musl.tar.gz" | tar -xz -C /usr/local/bin uentry; \
+	ln -sf /usr/local/bin/uentry /uentry; \
 	chmod +x /uentry; \
 	mkdir -p /etc/uentry
 USER grafana
