@@ -1,14 +1,22 @@
 # Example: Using uentry for a Kubernetes worker/job
-# Build uentry first: cargo build --release --target x86_64-unknown-linux-musl
 
 FROM alpine:3.23 AS builder
-RUN apk add --no-cache ca-certificates
+RUN set -eux; \
+	arch="$(uname -m)"; \
+	case "$arch" in \
+		x86_64|amd64) release_arch="x86_64" ;; \
+		aarch64|arm64) release_arch="aarch64" ;; \
+		*) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+	esac; \
+	apk add --no-cache ca-certificates; \
+	wget -qO /tmp/uentry.apk "https://github.com/ysginc/uentry/releases/download/latest/uentry-${release_arch}-musl.apk"; \
+	apk add --no-cache --allow-untrusted /tmp/uentry.apk; \
+	rm -f /tmp/uentry.apk
 WORKDIR /app
-COPY --from=uentry-builder /uentry /uentry
 COPY your-worker /app/your-worker
 
 FROM scratch
-COPY --from=builder /uentry /uentry
+COPY --from=builder /usr/bin/uentry /uentry
 COPY --from=builder /app/your-worker /app/your-worker
 COPY --from=builder /etc/ssl/certs /etc/ssl/certs
 
