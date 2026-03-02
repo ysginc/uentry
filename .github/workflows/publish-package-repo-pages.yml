@@ -7,12 +7,6 @@ on:
     types:
       - completed
   workflow_dispatch:
-    inputs:
-      allow_unsigned_fallback:
-        description: Publish unsigned metadata if signing keys are missing
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -116,8 +110,6 @@ jobs:
 
       - name: Resolve signing mode
         id: signing
-        env:
-          ALLOW_UNSIGNED_FALLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_unsigned_fallback || 'false' }}
         run: |
           set -euo pipefail
           required=(
@@ -134,22 +126,14 @@ jobs:
             fi
           done
 
-          if [[ ${#missing[@]} -eq 0 ]]; then
-            echo "Signing mode: signed"
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [[ ${#missing[@]} -ne 0 ]]; then
+            echo "Missing signing secrets: ${missing[*]}"
+            echo "Configure repository secrets before running publish-package-repo-pages."
+            exit 1
           fi
 
-          echo "Missing signing secrets: ${missing[*]}"
-          if [[ "$ALLOW_UNSIGNED_FALLBACK" == "true" ]]; then
-            echo "Signing mode: unsigned fallback enabled"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Unsigned fallback is disabled."
-          echo "Provide signing secrets or run workflow_dispatch with allow_unsigned_fallback=true."
-          exit 1
+          echo "Signing mode: signed"
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
 
       - name: Mirror package assets from releases
         env:
