@@ -404,6 +404,8 @@ Maintainers must define these repository secrets before enabling package repo pu
 
 The package-repo workflow also verifies GitHub Pages configuration before publish. It attempts to create Pages if missing and requires Pages build type `workflow` (Source: `GitHub Actions`).
 
+The workflow syncs incrementally for normal release publish/update events when a mirror cache is available, and falls back to a full release-index rebuild for cache misses, release deletions, or manual runs.
+
 Unsigned fallback is supported for manual runs only. Launch via `workflow_dispatch` with input `allow_unsigned_fallback=true` to publish unsigned metadata when signing secrets are missing. Release-triggered runs still fail if signing secrets are not configured.
 
 ## Development

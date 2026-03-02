@@ -5,7 +5,6 @@ on:
     types:
       - published
       - prereleased
-      - released
       - edited
       - deleted
   workflow_dispatch:
@@ -20,6 +19,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: package-repo-pages
@@ -29,6 +29,7 @@ jobs:
   build-site:
     name: Build repository metadata
     runs-on: ubuntu-24.04
+    if: github.event_name != 'release' || github.event.action != 'deleted' || github.event.release.tag_name != 'latest'
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PACKAGE_REPO_GPG_PRIVATE_KEY: ${{ secrets.PACKAGE_REPO_GPG_PRIVATE_KEY }}
@@ -39,6 +40,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Restore package mirror cache
+        id: mirror-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: site
+          key: package-repo-site-${{ github.run_id }}
+          restore-keys: |
+            package-repo-site-
+
+      - name: Resolve sync mode
+        id: sync
+        env:
+          CACHE_HIT: ${{ steps.mirror-cache.outputs.cache-hit }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action || '' }}
+        run: |
+          set -euo pipefail
+
+          sync_mode="full"
+          if [[ "$EVENT_NAME" == "release" && "$EVENT_ACTION" != "deleted" && "$CACHE_HIT" == "true" ]]; then
+            sync_mode="incremental"
+          fi
+
+          echo "mode=$sync_mode" >> "$GITHUB_OUTPUT"
 
       - name: Install repository tooling
         run: |
@@ -139,20 +165,35 @@ jobs:
       - name: Mirror package assets from releases
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          SYNC_MODE: ${{ steps.sync.outputs.mode }}
+          RELEASE_ID: ${{ github.event.release.id || '' }}
         run: |
           set -euo pipefail
-          mkdir -p site/{rpm,deb,apk}/stable site/{rpm,deb,apk}/latest
-          mkdir -p site/keys
 
           python3 <<'PY'
           import json
           import os
           import pathlib
           import re
+          import shutil
           import urllib.request
 
           repo = os.environ["GITHUB_REPOSITORY"]
           token = os.environ["GH_TOKEN"]
+          sync_mode = os.environ.get("SYNC_MODE", "full")
+          release_id = os.environ.get("RELEASE_ID", "").strip()
+
+          site_root = pathlib.Path("site")
+          if sync_mode == "full":
+              shutil.rmtree(site_root, ignore_errors=True)
+
+          (site_root / "rpm" / "stable").mkdir(parents=True, exist_ok=True)
+          (site_root / "rpm" / "latest").mkdir(parents=True, exist_ok=True)
+          (site_root / "deb" / "stable").mkdir(parents=True, exist_ok=True)
+          (site_root / "deb" / "latest").mkdir(parents=True, exist_ok=True)
+          (site_root / "apk" / "stable").mkdir(parents=True, exist_ok=True)
+          (site_root / "apk" / "latest").mkdir(parents=True, exist_ok=True)
+          (site_root / "keys").mkdir(parents=True, exist_ok=True)
 
           headers = {
               "Authorization": f"Bearer {token}",
@@ -167,14 +208,17 @@ jobs:
                   return json.loads(resp.read().decode("utf-8"))
 
           releases = []
-          page = 1
-          while True:
-              url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
-              chunk = request_json(url)
-              if not chunk:
-                  break
-              releases.extend(chunk)
-              page += 1
+          if sync_mode == "incremental" and release_id:
+              releases = [request_json(f"https://api.github.com/repos/{repo}/releases/{release_id}")]
+          else:
+              page = 1
+              while True:
+                  url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
+                  chunk = request_json(url)
+                  if not chunk:
+                      break
+                  releases.extend(chunk)
+                  page += 1
 
           ext_map = {
               ".rpm": "rpm",
@@ -191,6 +235,14 @@ jobs:
               channel = "latest" if (release.get("prerelease") or tag_name == "latest") else "stable"
               normalized_tag = safe_tag(tag_name)
 
+              if sync_mode == "incremental":
+                  for existing in (site_root / "rpm" / channel).glob(f"uentry-{normalized_tag}-*.rpm"):
+                      existing.unlink()
+                  for existing in (site_root / "deb" / channel / "pool").glob(f"uentry-{normalized_tag}-*.deb"):
+                      existing.unlink()
+                  for existing in (site_root / "apk" / channel).glob(f"**/uentry-{normalized_tag}-*.apk"):
+                      existing.unlink()
+
               for asset in release.get("assets", []):
                   name = asset.get("name", "")
                   ext = pathlib.Path(name).suffix
@@ -204,15 +256,15 @@ jobs:
 
                   dest_name = f"uentry-{normalized_tag}-{arch}-{libc}{ext}"
                   if ext == ".rpm":
-                      dest = pathlib.Path("site") / "rpm" / channel / dest_name
+                      dest = site_root / "rpm" / channel / dest_name
                   elif ext == ".deb":
-                      dest = pathlib.Path("site") / "deb" / channel / "pool" / dest_name
+                      dest = site_root / "deb" / channel / "pool" / dest_name
                   else:
-                      dest = pathlib.Path("site") / "apk" / channel / arch / dest_name
+                      dest = site_root / "apk" / channel / arch / dest_name
 
-                  dest.parent.mkdir(parents=True, exist_ok=True)
-                  if dest.exists():
-                      continue
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if dest.exists():
+                      dest.unlink()
 
                   download_url = asset["url"]
                   req = urllib.request.Request(
@@ -225,7 +277,7 @@ jobs:
                   with urllib.request.urlopen(req) as resp:
                       dest.write_bytes(resp.read())
 
-          print("Release asset mirroring complete")
+          print(f"Release asset mirroring complete (mode={sync_mode})")
           PY
 
       - name: Prepare GPG keyring
@@ -394,6 +446,12 @@ jobs:
           </body>
           </html>
           EOF
+
+      - name: Save package mirror cache
+        uses: actions/cache/save@v4
+        with:
+          path: site
+          key: package-repo-site-${{ github.run_id }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

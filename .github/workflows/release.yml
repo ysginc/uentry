@@ -10,6 +10,10 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch || github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build ${{ matrix.target }}
@@ -43,6 +47,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
@@ -71,7 +80,7 @@ jobs:
             target/${{ matrix.target }}/release/uentry-${{ matrix.arch }}-${{ matrix.libc }}.sha256
 
   packages:
-    name: Build Packages (${{ matrix.pkg_format }}) - ${{ matrix.arch }}
+    name: Build Packages (${{ matrix.arch }})
     needs: build
     runs-on: ubuntu-latest
     if: needs.build.result == 'success'
@@ -81,39 +90,26 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            pkg_format: deb
-            libc: gnu
-          - arch: x86_64
-            pkg_format: rpm
-            libc: gnu
-          - arch: x86_64
-            pkg_format: apk
-            libc: musl
+            package_arch: amd64
           - arch: aarch64
-            pkg_format: deb
-            libc: gnu
-          - arch: aarch64
-            pkg_format: rpm
-            libc: gnu
-          - arch: aarch64
-            pkg_format: apk
-            libc: musl
+            package_arch: arm64
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Download binary
+      - name: Download gnu binary
         uses: actions/download-artifact@v8
         with:
-          name: uentry-${{ matrix.arch }}-${{ matrix.libc }}
-          path: artifacts
+          name: uentry-${{ matrix.arch }}-gnu
+          path: artifacts/gnu
 
-      - name: Extract binary
-        run: |
-          tar -xzf artifacts/uentry-${{ matrix.arch }}-${{ matrix.libc }}.tar.gz
-          chmod +x uentry
+      - name: Download musl binary
+        uses: actions/download-artifact@v8
+        with:
+          name: uentry-${{ matrix.arch }}-musl
+          path: artifacts/musl
 
       - name: Install nfpm
         run: |
@@ -135,23 +131,42 @@ jobs:
             echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build ${{ matrix.pkg_format }} package
+      - name: Build packages
         env:
-          ARCH: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
+          ARCH: ${{ matrix.package_arch }}
         run: |
+          set -euo pipefail
           mkdir -p dist
-          VERSION=${{ steps.version.outputs.VERSION }} \
-          nfpm package --packager ${{ matrix.pkg_format }} --target ./dist/uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}
+
+          build_package() {
+            local packager="$1"
+            local libc="$2"
+            local source_dir="$3"
+
+            rm -f uentry
+            tar -xzf "${source_dir}/uentry-${{ matrix.arch }}-${libc}.tar.gz"
+            chmod +x uentry
+
+            VERSION=${{ steps.version.outputs.VERSION }} \
+            nfpm package --packager "${packager}" --target "./dist/uentry-${{ matrix.arch }}-${libc}.${packager}"
+          }
+
+          build_package deb gnu artifacts/gnu
+          build_package rpm gnu artifacts/gnu
+          build_package apk musl artifacts/musl
 
       - name: Generate checksum
         run: |
+          set -euo pipefail
           cd dist
-          sha256sum * > uentry-${{ matrix.arch }}-${{ matrix.libc }}.${{ matrix.pkg_format }}.sha256
+          sha256sum uentry-${{ matrix.arch }}-gnu.deb > uentry-${{ matrix.arch }}-gnu.deb.sha256
+          sha256sum uentry-${{ matrix.arch }}-gnu.rpm > uentry-${{ matrix.arch }}-gnu.rpm.sha256
+          sha256sum uentry-${{ matrix.arch }}-musl.apk > uentry-${{ matrix.arch }}-musl.apk.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: uentry-${{ matrix.arch }}-${{ matrix.libc }}-${{ matrix.pkg_format }}
+          name: uentry-${{ matrix.arch }}-packages
           path: dist/*
 
   release:
@@ -208,13 +223,6 @@ jobs:
           path: artifacts
           merge-multiple: false
 
-      - name: Update latest tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f latest "${{ github.event.workflow_run.head_sha }}"
-          git push origin refs/tags/latest --force
-
       - name: Remove existing latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -223,6 +231,8 @@ jobs:
 
       - name: Recreate latest tag
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -f latest "${{ github.event.workflow_run.head_sha }}"
           git push origin refs/tags/latest --force
 
