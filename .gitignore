@@ -1,5 +1,5 @@
 docs/*.md
 AGENTS.md
 
-/target
+target/
 dist/
