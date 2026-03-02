@@ -1,12 +1,11 @@
 name: Publish Package Repositories (Pages)
 
 on:
-  release:
+  workflow_run:
+    workflows:
+      - Release
     types:
-      - published
-      - prereleased
-      - edited
-      - deleted
+      - completed
   workflow_dispatch:
     inputs:
       allow_unsigned_fallback:
@@ -29,7 +28,7 @@ jobs:
   build-site:
     name: Build repository metadata
     runs-on: ubuntu-24.04
-    if: github.event_name != 'release' || github.event.action != 'deleted' || github.event.release.tag_name != 'latest'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PACKAGE_REPO_GPG_PRIVATE_KEY: ${{ secrets.PACKAGE_REPO_GPG_PRIVATE_KEY }}
@@ -52,19 +51,9 @@ jobs:
 
       - name: Resolve sync mode
         id: sync
-        env:
-          CACHE_HIT: ${{ steps.mirror-cache.outputs.cache-hit }}
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_ACTION: ${{ github.event.action || '' }}
         run: |
           set -euo pipefail
-
-          sync_mode="full"
-          if [[ "$EVENT_NAME" == "release" && "$EVENT_ACTION" != "deleted" && "$CACHE_HIT" == "true" ]]; then
-            sync_mode="incremental"
-          fi
-
-          echo "mode=$sync_mode" >> "$GITHUB_OUTPUT"
+          echo "mode=full" >> "$GITHUB_OUTPUT"
 
       - name: Install repository tooling
         run: |
@@ -166,7 +155,6 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           SYNC_MODE: ${{ steps.sync.outputs.mode }}
-          RELEASE_ID: ${{ github.event.release.id || '' }}
         run: |
           set -euo pipefail
 
@@ -181,11 +169,11 @@ jobs:
           repo = os.environ["GITHUB_REPOSITORY"]
           token = os.environ["GH_TOKEN"]
           sync_mode = os.environ.get("SYNC_MODE", "full")
-          release_id = os.environ.get("RELEASE_ID", "").strip()
 
           site_root = pathlib.Path("site")
-          if sync_mode == "full":
-              shutil.rmtree(site_root, ignore_errors=True)
+          if sync_mode != "full":
+              raise RuntimeError(f"Unsupported sync mode: {sync_mode}")
+          shutil.rmtree(site_root, ignore_errors=True)
 
           (site_root / "rpm" / "stable").mkdir(parents=True, exist_ok=True)
           (site_root / "rpm" / "latest").mkdir(parents=True, exist_ok=True)
@@ -208,17 +196,14 @@ jobs:
                   return json.loads(resp.read().decode("utf-8"))
 
           releases = []
-          if sync_mode == "incremental" and release_id:
-              releases = [request_json(f"https://api.github.com/repos/{repo}/releases/{release_id}")]
-          else:
-              page = 1
-              while True:
-                  url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
-                  chunk = request_json(url)
-                  if not chunk:
-                      break
-                  releases.extend(chunk)
-                  page += 1
+          page = 1
+          while True:
+              url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
+              chunk = request_json(url)
+              if not chunk:
+                  break
+              releases.extend(chunk)
+              page += 1
 
           ext_map = {
               ".rpm": "rpm",
@@ -231,17 +216,13 @@ jobs:
               return re.sub(r"[^0-9A-Za-z._-]+", "-", tag)
 
           for release in releases:
-              tag_name = release.get("tag_name", "")
-              channel = "latest" if (release.get("prerelease") or tag_name == "latest") else "stable"
-              normalized_tag = safe_tag(tag_name)
+              if release.get("draft"):
+                  continue
 
-              if sync_mode == "incremental":
-                  for existing in (site_root / "rpm" / channel).glob(f"uentry-{normalized_tag}-*.rpm"):
-                      existing.unlink()
-                  for existing in (site_root / "deb" / channel / "pool").glob(f"uentry-{normalized_tag}-*.deb"):
-                      existing.unlink()
-                  for existing in (site_root / "apk" / channel).glob(f"**/uentry-{normalized_tag}-*.apk"):
-                      existing.unlink()
+              tag_name = release.get("tag_name", "")
+              is_latest_stream = bool(release.get("prerelease")) or tag_name == "latest"
+              channel = "latest" if is_latest_stream else "stable"
+              normalized_tag = safe_tag(tag_name)
 
               for asset in release.get("assets", []):
                   name = asset.get("name", "")
