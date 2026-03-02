@@ -365,6 +365,8 @@ jobs:
                 printf "%s" "$PACKAGE_REPO_APK_PRIVATE_KEY_B64" | base64 -d > /keys/uentry-packages.rsa
                 printf "%s\n" "$PACKAGE_REPO_APK_PUBLIC_KEY" > /keys/uentry-packages.rsa.pub
                 chmod 600 /keys/uentry-packages.rsa
+                mkdir -p /etc/apk/keys
+                cp /keys/uentry-packages.rsa.pub /etc/apk/keys/uentry-packages.rsa.pub
               else
                 apk add --no-cache apk-tools
               fi
@@ -408,6 +410,25 @@ jobs:
               <li>DEB: <code>/deb/{stable|latest}</code></li>
               <li>APK: <code>/apk/{stable|latest}/&lt;arch&gt;</code></li>
             </ul>
+
+            <h2>Signing keys</h2>
+            <ul>
+              <li>GPG public key: <code>/keys/uentry-packages.asc</code></li>
+              <li>APK public key: <code>/apk/keys/uentry-packages.rsa.pub</code></li>
+            </ul>
+
+            <h2>Install keys (script lines)</h2>
+            <p>Set your package repository base URL first:</p>
+            <pre><code>BASE_URL="https://&lt;your-pages-domain&gt;"</code></pre>
+
+            <h3>Debian/Ubuntu (APT)</h3>
+            <pre><code>curl -fsSL "$BASE_URL/keys/uentry-packages.asc" | gpg --dearmor | sudo tee /usr/share/keyrings/uentry-packages.gpg &gt;/dev/null</code></pre>
+
+            <h3>RHEL/Fedora (RPM/DNF)</h3>
+            <pre><code>curl -fsSL "$BASE_URL/keys/uentry-packages.asc" | sudo tee /etc/pki/rpm-gpg/RPM-GPG-KEY-uentry &gt;/dev/null &amp;&amp; sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-uentry</code></pre>
+
+            <h3>Alpine (APK)</h3>
+            <pre><code>curl -fsSL "$BASE_URL/apk/keys/uentry-packages.rsa.pub" | sudo tee /etc/apk/keys/uentry-packages.rsa.pub &gt;/dev/null</code></pre>
           </body>
           </html>
           EOF
