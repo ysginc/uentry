@@ -134,9 +134,24 @@ jobs:
       - name: Build packages
         env:
           ARCH: ${{ matrix.package_arch }}
+          PACKAGE_REPO_APK_PRIVATE_KEY_B64: ${{ secrets.PACKAGE_REPO_APK_PRIVATE_KEY_B64 }}
         run: |
           set -euo pipefail
           mkdir -p dist
+
+          if [[ -z "${PACKAGE_REPO_APK_PRIVATE_KEY_B64:-}" ]]; then
+            echo "Missing PACKAGE_REPO_APK_PRIVATE_KEY_B64 secret required to sign APK packages"
+            exit 1
+          fi
+
+          apk_sign_key_file="$(mktemp)"
+          printf '%s' "$PACKAGE_REPO_APK_PRIVATE_KEY_B64" | base64 -d > "$apk_sign_key_file"
+          chmod 600 "$apk_sign_key_file"
+
+          cleanup() {
+            rm -f "$apk_sign_key_file"
+          }
+          trap cleanup EXIT
 
           build_package() {
             local packager="$1"
@@ -147,8 +162,14 @@ jobs:
             tar -xzf "${source_dir}/uentry-${{ matrix.arch }}-${libc}.tar.gz"
             chmod +x uentry
 
-            VERSION=${{ steps.version.outputs.VERSION }} \
-            nfpm package --packager "${packager}" --target "./dist/uentry-${{ matrix.arch }}-${libc}.${packager}"
+            if [[ "$packager" == "apk" ]]; then
+              VERSION=${{ steps.version.outputs.VERSION }} \
+              NFPM_APK_KEY_FILE="$apk_sign_key_file" \
+              nfpm package --packager "${packager}" --target "./dist/uentry-${{ matrix.arch }}-${libc}.${packager}"
+            else
+              VERSION=${{ steps.version.outputs.VERSION }} \
+              nfpm package --packager "${packager}" --target "./dist/uentry-${{ matrix.arch }}-${libc}.${packager}"
+            fi
           }
 
           build_package deb gnu artifacts/gnu

@@ -383,6 +383,21 @@ jobs:
                     continue
                   fi
 
+                  if [ "$SIGNING_ENABLED" = "true" ]; then
+                    for pkg in ./*.apk; do
+                      if ! apk verify "$pkg" >/dev/null 2>&1; then
+                        echo "Removing untrusted package: $pkg"
+                        rm -f "$pkg"
+                      fi
+                    done
+
+                    set -- *.apk
+                    if [ ! -e "$1" ]; then
+                      echo "No trusted packages remain in $arch_dir"
+                      continue
+                    fi
+                  fi
+
                   apk index --output APKINDEX.tar.gz ./*.apk
                   if [ "$SIGNING_ENABLED" = "true" ]; then
                     abuild-sign -k /keys/uentry-packages.rsa APKINDEX.tar.gz
