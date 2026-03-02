@@ -7,11 +7,11 @@ RUN set -eux; \
 		aarch64|arm64) release_arch="aarch64" ;; \
 		*) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
 	esac; \
-	wget -qO /tmp/uentry.apk "https://github.com/ysginc/uentry/releases/download/latest/uentry-${release_arch}-musl.apk"; \
-	apk add --no-cache --allow-untrusted /tmp/uentry.apk; \
+	wget -qO /etc/apk/keys/uentry-packages.rsa.pub "https://ysginc.github.io/uentry/apk/keys/uentry-packages.rsa.pub"; \
+	echo "https://ysginc.github.io/uentry/apk/latest/${release_arch}" >> /etc/apk/repositories; \
+	apk add --no-cache uentry; \
 	ln -sf "$(command -v uentry)" /uentry; \
 	chmod +x /uentry; \
-	mkdir -p /etc/uentry; \
-	rm -f /tmp/uentry.apk
+	mkdir -p /etc/uentry
 ENTRYPOINT ["/uentry"]
 CMD ["python", "--version"]

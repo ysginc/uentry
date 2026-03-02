@@ -1,6 +1,17 @@
 FROM docker.elastic.co/elasticsearch/elasticsearch:8.15.0
-COPY uentry /uentry
 COPY uentry.secure.yaml /etc/uentry/config.yaml
-RUN chmod +x /uentry && mkdir -p /etc/uentry /tmp
+USER root
+RUN set -eux; \
+	mkdir -p /usr/share/keyrings /etc/apt/sources.list.d; \
+	curl -fsSL "https://ysginc.github.io/uentry/keys/uentry-packages.gpg" -o /usr/share/keyrings/uentry-packages.gpg; \
+	echo "deb [signed-by=/usr/share/keyrings/uentry-packages.gpg] https://ysginc.github.io/uentry/deb/latest ./" > /etc/apt/sources.list.d/uentry.list; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends uentry; \
+	apt-get clean; \
+	rm -rf /var/lib/apt/lists/*; \
+	ln -sf "$(command -v uentry)" /uentry; \
+	chmod +x /uentry; \
+	mkdir -p /etc/uentry /tmp
+USER elasticsearch
 ENTRYPOINT ["/uentry", "--strict"]
 CMD ["elasticsearch", "--version"]

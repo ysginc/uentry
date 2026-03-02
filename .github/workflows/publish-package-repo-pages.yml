@@ -433,8 +433,8 @@ jobs:
             </ul>
 
             <h2>Install keys (script lines)</h2>
-            <p>Set your package repository base URL first:</p>
-            <pre><code>BASE_URL="https://&lt;your-pages-domain&gt;"</code></pre>
+            <p>Base URL: <code>https://ysginc.github.io/uentry</code></p>
+            <pre><code>BASE_URL="https://ysginc.github.io/uentry"</code></pre>
 
             <h3>Debian/Ubuntu (APT)</h3>
             <pre><code>curl -fsSL "$BASE_URL/keys/uentry-packages.asc" | gpg --dearmor | sudo tee /usr/share/keyrings/uentry-packages.gpg &gt;/dev/null</code></pre>
