@@ -36,7 +36,7 @@ jobs:
 
       - name: Restore package mirror cache
         id: mirror-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: site
           key: package-repo-site-${{ github.run_id }}
@@ -449,7 +449,7 @@ jobs:
           EOF
 
       - name: Save package mirror cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: site
           key: package-repo-site-${{ github.run_id }}
