@@ -213,7 +213,7 @@ jobs:
         run: find artifacts -type f | head -50
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/**/uentry-*.tar.gz
@@ -258,7 +258,7 @@ jobs:
           git push origin refs/tags/latest --force
 
       - name: Create Latest Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: latest
           name: latest
