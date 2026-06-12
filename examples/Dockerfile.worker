@@ -1,6 +1,6 @@
 # Example: Using uentry for a Kubernetes worker/job
 
-FROM alpine:3.23 AS builder
+FROM alpine:3.24 AS builder
 RUN set -eux; \
 	arch="$(uname -m)"; \
 	case "$arch" in \
